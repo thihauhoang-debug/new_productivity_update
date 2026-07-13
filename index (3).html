@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bảng điều khiển Năng suất — Pick / Pack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0c0e12;
+    --panel:#14171d;
+    --panel-2:#191d24;
+    --line:#262b34;
+    --text:#e7eaef;
+    --muted:#838d9c;
+    --dim:#565f6e;
+    --pick:#4f9eff;
+    --pack:#ff8a3d;
+    --red:#e5484d;
+    --yellow:#f0a93a;
+    --green:#2fbf71;
+    --row-line:#1c2027;
+    --mono:'JetBrains Mono','DejaVu Sans Mono','SFMono-Regular','Menlo','Consolas',ui-monospace,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --display:'Oswald','Segoe UI Condensed',var(--sans);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.55);
+  }
+  html[data-theme="light"]{
+    --bg:#f4f5f7;
+    --panel:#ffffff;
+    --panel-2:#f0f2f5;
+    --line:#e3e6eb;
+    --text:#161a20;
+    --muted:#5c6572;
+    --dim:#939aa6;
+    --row-line:#edeff2;
+    --shadow:0 1px 2px rgba(20,25,35,.06), 0 10px 24px -14px rgba(20,25,35,.16);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--pick) 10%, transparent) 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--pack) 10%, transparent) 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:20px 24px 60px;
+    transition:background .2s ease,color .2s ease;
+  }
+  .wrap{max-width:1320px;margin:0 auto;}
+
+  /* header */
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line);}
+  .brand-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--pick);text-transform:uppercase;margin-bottom:6px;font-weight:600;}
+  h1{margin:0;font-family:var(--display);font-size:29px;font-weight:600;letter-spacing:.01em;text-transform:uppercase;}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:right;}
+  .clock b{color:var(--text);font-size:15px;letter-spacing:.03em;}
+  .pulse-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 0 0 rgba(47,191,113,.6);animation:pulse 2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,191,113,.5);}70%{box-shadow:0 0 0 7px rgba(47,191,113,0);}100%{box-shadow:0 0 0 0 rgba(47,191,113,0);}}
+  .head-actions{display:flex;gap:14px;align-items:center;justify-content:flex-end;margin-top:6px;flex-wrap:wrap;}
+  .theme-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px;}
+  .theme-toggle:hover{border-color:var(--muted);}
+  .config-toggle{font-size:11px;color:var(--dim);cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+
+  /* upload */
+  .feeds{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+  .feed{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;position:relative;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:border-color .15s ease;}
+  .feed:hover{border-color:var(--muted);}
+  .feed::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .feed.pick::before{background:var(--pick);}
+  .feed.pack::before{background:var(--pack);}
+  .feed-icon{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:13px;flex-shrink:0;}
+  .feed.pick .feed-icon{background:rgba(79,158,255,.12);color:var(--pick);}
+  .feed.pack .feed-icon{background:rgba(255,138,61,.12);color:var(--pack);}
+  .feed-body{flex:1;min-width:0;}
+  .feed-title{font-size:13px;font-weight:600;color:var(--text);}
+  .feed-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .feed-drop{font-size:11px;color:var(--dim);margin-top:3px;}
+  .feed input{display:none;}
+  .feed-btn{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text);background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:8px 12px;cursor:pointer;white-space:nowrap;transition:.15s;}
+  .feed-btn:hover{border-color:var(--muted);}
+  .feed-reset{font-size:15px;color:var(--dim);flex-shrink:0;padding:4px 6px;border-radius:6px;cursor:pointer;}
+  .feed-reset:hover{color:var(--red);background:rgba(229,72,77,.12);}
+  .feed.drag{outline:2px dashed var(--muted);outline-offset:-6px;}
+
+  .upload-mode-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .upload-mode-label{font-size:12px;color:var(--muted);font-weight:600;flex-shrink:0;}
+  #uploadModeToggle button{font-size:11.5px;padding:7px 11px;}
+
+  .banner{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-size:12.5px;color:var(--muted);margin-bottom:22px;line-height:1.6;}
+  .banner b{color:var(--text);}
+
+  /* kpi */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);transition:transform .15s ease,border-color .15s ease;}
+  .kpi:hover{transform:translateY(-1px);border-color:var(--muted);}
+  .kpi-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:600;}
+  .kpi-val{font-family:var(--mono);font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.02em;}
+  .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+  .kpi-val.g{color:var(--green);} .kpi-val.y{color:var(--yellow);} .kpi-val.r{color:var(--red);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow);}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .panel-head-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .panel-head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .panel-title{font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;}
+  .panel-note{font-size:11px;color:var(--dim);font-family:var(--mono);}
+
+  canvas{max-width:100%;}
+
+  /* rag bars */
+  .rag-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .rag-row{margin-bottom:12px;}
+  .rag-row-head{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .rag-bar{height:22px;border-radius:5px;overflow:hidden;display:flex;background:var(--panel-2);border:1px solid var(--line);}
+  .rag-seg{height:100%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:#0c0e12;min-width:0;transition:width .4s ease;}
+  .rag-seg.red{background:var(--red);}
+  .rag-seg.yellow{background:var(--yellow);}
+  .rag-seg.green{background:var(--green);}
+
+  /* generic report tables */
+  .rtable{width:100%;border-collapse:collapse;font-size:13px;}
+  .rtable th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);font-weight:600;padding:7px 4px;border-bottom:1px solid var(--line);}
+  .rtable td{padding:9px 4px;border-bottom:1px solid var(--row-line);color:var(--text);}
+  .rtable td.num, .rtable th.num{text-align:right;font-family:var(--mono);}
+  .rtable tr.total td{font-weight:700;color:var(--text);border-top:1px solid var(--line);}
+  .rtable tr.grand-total td{font-weight:700;color:var(--bg);background:var(--pick);border-top:1px solid var(--line);}
+  html[data-theme="light"] .rtable tr.grand-total td{color:#fff;}
+  .rtable tr.sub td{color:var(--muted);}
+
+  /* download buttons */
+  .dl-btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 9px;cursor:pointer;text-transform:uppercase;transition:.15s;}
+  .dl-btn:hover{color:var(--text);border-color:var(--muted);}
+  .dl-btn svg{width:11px;height:11px;flex-shrink:0;}
+  .dl-btn-main{font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.03em;color:var(--bg);background:var(--green);border:1px solid var(--green);border-radius:8px;padding:9px 16px;cursor:pointer;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;transition:filter .15s;}
+  .dl-btn-main:hover{filter:brightness(1.08);}
+  .dl-btn-main svg{width:13px;height:13px;}
+  .rtable-note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.6;}
+
+  /* editable station/captain cells */
+  td.editable{cursor:text;border-bottom:1px dashed var(--line);}
+  td.editable:hover{background:var(--panel-2);}
+  td.editable:focus{outline:1.5px solid var(--pick);outline-offset:-1px;background:var(--panel-2);}
+  td.editable:empty::before{content:'— bấm để nhập —';color:var(--dim);font-style:italic;}
+  td.editable.saved-flash{background:color-mix(in srgb, var(--green) 20%, transparent);transition:background .8s ease;}
+  .rtable-note code{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-family:var(--mono);color:var(--text);font-size:11px;}
+  .task-pill{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+  .task-pill i{width:8px;height:8px;border-radius:2px;display:inline-block;}
+
+  .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .stacked-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .hourly-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  /* 2 bảng nhỏ gộp chung 1 khung panel (VD: Direct/Indirect + Theo Captain) */
+  .split-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .split-grid > div:not(:first-child){border-left:1px solid var(--line);padding-left:20px;}
+  .panel-head.mini{margin-bottom:8px;}
+  .panel-title.mini{font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans);font-weight:600;}
+
+  .rag-thresh-table{margin-bottom:16px;}
+  .rag-thresh-table .rtable th{text-align:left;}
+  .rag-thresh-table .rtable td:not(:first-child){font-family:var(--mono);}
+
+  /* leaderboard table */
+  .table-controls{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+  .table-controls input, .table-controls select{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:var(--sans);}
+  .table-controls input{flex:1;min-width:180px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+
+  /* sort toggle + status filter */
+  .sort-toggle{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;}
+  .sort-toggle button{background:var(--panel-2);border:none;color:var(--muted);font-family:var(--sans);font-size:12px;padding:8px 12px;cursor:pointer;white-space:nowrap;}
+  .sort-toggle button:not(:last-child){border-right:1px solid var(--line);}
+  .sort-toggle button.active{background:var(--pick);color:#fff;font-weight:600;}
+  /* upload history */
+  .hist-banner{display:none;align-items:center;justify-content:space-between;gap:12px;background:rgba(240,169,58,.1);border:1px solid var(--yellow);color:var(--yellow);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-family:var(--mono);font-size:12.5px;flex-wrap:wrap;}
+  .hist-banner button{background:var(--yellow);color:#1a1400;border:none;border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .hist-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .hist-controls select{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 9px;font-size:12px;font-family:var(--sans);}
+
+  thead th .sort-arrow{margin-left:4px;font-size:9px;color:var(--pick);}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);border-bottom:1px solid var(--line);padding:8px 10px;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel);}
+  thead th:hover{color:var(--muted);}
+  tbody td{padding:8px 10px;border-bottom:1px solid var(--row-line);font-family:var(--mono);}
+  tbody tr:hover{background:var(--panel-2);}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;font-family:var(--mono);}
+  .badge.red{background:rgba(229,72,77,.15);color:var(--red);}
+  .badge.yellow{background:rgba(240,169,58,.15);color:var(--yellow);}
+  .badge.green{background:rgba(47,191,113,.15);color:var(--green);}
+  .task-tag{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:4px;}
+  .task-tag.pick{background:rgba(79,158,255,.14);color:var(--pick);}
+  .task-tag.pack{background:rgba(255,138,61,.14);color:var(--pack);}
+  .target-badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--green);background:rgba(47,191,113,.14);border:1px solid rgba(47,191,113,.3);padding:4px 10px;border-radius:20px;}
+  td.total-col, th.total-col{background:color-mix(in srgb, var(--pick) 8%, transparent);font-weight:700;color:var(--text);}
+  th.total-col{color:var(--pick);}
+  .rowidx{color:var(--dim);font-family:var(--mono);font-size:11.5px;}
+  td.hnum{font-family:var(--mono);text-align:right;}
+  td.hnum .dash{color:var(--dim);}
+  td.hnum .indirect-cell{color:var(--red);font-weight:700;}
+  .table-scroll{max-height:420px;overflow-y:auto;overflow-x:auto;border-radius:8px;}
+  .table-scroll.short{max-height:520px;}
+  /* dùng cho 📡 KPI Hourly & 🔍 Chi tiết Indirect theo người — cả 2 đều phân trang 20 dòng/trang,
+     nên 900px là đủ để hiện trọn 20 dòng + dòng Total/tiêu đề mà không phải cuộn thêm bên trong,
+     kể cả khi phóng to chữ (zoom) */
+  .table-scroll.tall{max-height:900px;}
+  .empty{text-align:center;color:var(--dim);padding:40px 0;font-size:12.5px;}
+
+  /* phân trang dùng chung: 📡 KPI Hourly & 🔍 Chi tiết Indirect theo người */
+  .pg-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
+  .pg-info{font-family:var(--mono);font-size:11.5px;color:var(--muted);}
+  .pg-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .pg-btn{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 11px;font-size:12px;font-family:var(--sans);cursor:pointer;transition:.15s;white-space:nowrap;}
+  .pg-btn:hover:not(:disabled){border-color:var(--muted);}
+  .pg-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .pg-page{font-family:var(--mono);font-size:12px;color:var(--muted);padding:0 4px;white-space:nowrap;}
+  .pg-page b{color:var(--text);}
+
+  .footer-note{margin-top:26px;font-size:11px;color:var(--dim);text-align:center;line-height:1.7;}
+
+  /* config panel */
+  .config-panel{display:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:20px;}
+  .config-panel.open{display:block;}
+  .config-section{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line);}
+  .config-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .config-section-title{font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;}
+  .config-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  .config-row label{font-size:12px;color:var(--muted);width:220px;flex-shrink:0;}
+  .config-row input{flex:1;min-width:120px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:8px 10px;font-size:12px;font-family:var(--mono);}
+  .config-row input.small{max-width:110px;flex:none;}
+  .config-row button{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;}
+  .config-row button:hover{border-color:var(--muted);}
+  .config-hint{font-size:11px;color:var(--dim);line-height:1.6;margin-top:4px;}
+
+  /* readme modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(6,8,12,.6);backdrop-filter:blur(2px);z-index:100;align-items:center;justify-content:center;padding:24px;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:720px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow);}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);}
+  .modal-head h2{margin:0;font-family:var(--display);font-size:16px;text-transform:uppercase;letter-spacing:.03em;}
+  .modal-close{cursor:pointer;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:6px 11px;font-size:13px;line-height:1;}
+  .modal-close:hover{border-color:var(--muted);}
+  .modal-body{padding:8px 20px 22px;}
+
+  /* popup toàn màn hình cho bảng 🔍 Chi tiết Indirect theo người */
+  .modal-box.fullscreen-box{max-width:min(1440px,96vw);width:96vw;max-height:94vh;padding:0;display:flex;flex-direction:column;}
+  .fullscreen-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);border-radius:12px 12px 0 0;flex-shrink:0;}
+  .fullscreen-bar b{font-family:var(--display);font-size:14px;text-transform:uppercase;letter-spacing:.03em;color:var(--text);font-weight:600;}
+  .fullscreen-inner{overflow-y:auto;padding:18px 20px 22px;}
+  .fullscreen-inner .table-scroll.tall{max-height:calc(94vh - 210px);}
+  .readme-item{margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--row-line);}
+  .readme-item:last-child{border-bottom:none;}
+  .readme-item h3{margin:0 0 6px;font-size:13px;font-family:var(--display);letter-spacing:.02em;color:var(--pick);}
+  .readme-item p{margin:0 0 6px;font-size:12.5px;line-height:1.65;color:var(--muted);}
+  .readme-item p:last-child{margin-bottom:0;}
+  .readme-item code{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-family:var(--mono);color:var(--text);font-size:11.5px;}
+
+  /* KPI Hourly toolbar: zoom + edit mode + column visibility */
+  .kpi-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .zoom-ctrl{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden;}
+  .zoom-ctrl button{background:var(--panel-2);border:none;color:var(--text);font-size:14px;font-weight:700;padding:6px 12px;cursor:pointer;}
+  .zoom-ctrl button:hover{background:var(--line);}
+  .zoom-ctrl span{font-family:var(--mono);font-size:12px;color:var(--muted);padding:0 10px;min-width:44px;text-align:center;}
+  .edit-toggle{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted);background:var(--panel-2);user-select:none;}
+  .edit-toggle.active{color:var(--green);border-color:rgba(47,191,113,.4);background:rgba(47,191,113,.1);}
+  .col-toggle-wrap{position:relative;}
+  .col-toggle-btn{border:1px solid var(--line);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted);background:var(--panel-2);}
+  .col-toggle-btn:hover{border-color:var(--muted);}
+  .col-toggle-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px;box-shadow:var(--shadow);z-index:20;min-width:160px;}
+  .col-toggle-menu.open{display:block;}
+  .col-toggle-menu label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text);padding:5px 2px;cursor:pointer;white-space:nowrap;}
+  #kpiHourlyTable{transition:font-size .12s ease;}
+  #kpiHourlyTable .col-hidden{display:none;}
+  .drive-status{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:8px;}
+  .drive-status.ok{color:var(--green);}
+  .drive-status.err{color:var(--red);}
+
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .rag-grid,.summary-grid,.stacked-grid,.hourly-grid,.split-grid{grid-template-columns:1fr;}
+    .split-grid > div:not(:first-child){border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:16px;}
+    .feeds{grid-template-columns:1fr;}
+    .topbar{flex-direction:column;align-items:flex-start;}
+    .clock{text-align:left;}
+    .head-actions{justify-content:flex-start;}
+    .panel-head{align-items:flex-start;}
+  }
+  @media(max-width:520px){
+    body{padding:14px 12px 40px;}
+    h1{font-size:22px;}
+    .dl-btn-main span, .dl-btn span{display:inline;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <div class="brand-eyebrow">WMS · Ops Floor Monitor</div>
+      <h1>Bảng điều khiển Năng suất — Pick / Pack</h1>
+    </div>
+    <div class="clock">
+      <div><span class="pulse-dot"></span><b id="clockTime">--:--:--</b></div>
+      <div id="clockDate">—</div>
+      <div class="head-actions">
+        <button class="dl-btn-main" id="exportAllBtn" title="Xuất toàn bộ báo cáo hiện tại ra 1 file Excel nhiều sheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Xuất báo cáo
+        </button>
+        <span class="theme-toggle" id="themeToggle">🌙 <span id="themeLabel">Dark</span></span>
+        <span class="config-toggle" id="readmeToggle">❔ Hướng dẫn</span>
+        <span class="config-toggle" id="configToggle">⚙ Cấu hình</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hist-banner" id="histBanner">
+    <span id="histBannerText"></span>
+    <button id="histBannerBack">↩ Quay lại dữ liệu mới nhất</button>
+  </div>
+
+  <div class="config-panel" id="configPanel">
+    <div class="config-section">
+      <div class="config-section-title">Ngưỡng RAG (theo Sản lượng cả ca — tổng các cột giờ trong file)</div>
+      <div class="config-row">
+        <label>Picking — Đỏ dưới / Xanh từ</label>
+        <input type="number" id="pickRed" class="small" value="170"> – <input type="number" id="pickGreen" class="small" value="200">
+      </div>
+      <div class="config-row">
+        <label>Packing — Đỏ dưới / Xanh từ</label>
+        <input type="number" id="packRed" class="small" value="16"> – <input type="number" id="packGreen" class="small" value="25">
+      </div>
+      <div class="config-hint">Vàng là khoảng giữa 2 mốc. Đổi số ở đây sẽ tính lại toàn bộ RAG, bảng target và bảng chi tiết ngay lập tức.</div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">Target theo khung giờ (item/giờ, dùng cho bảng chi tiết theo giờ)</div>
+      <div class="config-row">
+        <label>Picking — target/giờ</label>
+        <input type="number" id="pickHourTarget" class="small" value="200">
+      </div>
+      <div class="config-row">
+        <label>Packing — target/giờ</label>
+        <input type="number" id="packHourTarget" class="small" value="25">
+      </div>
+      <div class="config-hint">Mặc định lấy bằng mốc Xanh ở trên — sửa lại nếu target thực tế theo giờ khác với target Sản lượng cả ngày.</div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">Lưu & chia sẻ dữ liệu qua Google Drive</div>
+      <div class="config-row">
+        <label>Apps Script Web App URL</label>
+        <input type="text" id="driveUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+      </div>
+      <div class="config-row">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+          <input type="checkbox" id="autoSyncDrive" checked style="width:auto;"> Tự động đồng bộ bản mới nhất từ Drive khi mở link (để người khác cũng thấy)
+        </label>
+      </div>
+      <div class="config-hint">Xem hướng dẫn deploy script ở cuối trang. Dán cùng 1 URL này dùng chung cho lưu (POST), xem lịch sử (GET) <b>và đồng bộ dữ liệu chung</b>. <b>Ví dụ:</b> bạn tải file lên → dashboard gửi lên Drive → bất kỳ ai mở đúng link này (đã cấu hình cùng URL) đều tự thấy đúng bản Pick/Pack mới nhất đó, không cần bạn gửi file qua lại. Bấm "🔄 Đồng bộ ngay" (cạnh 2 ô tải file) bất cứ lúc nào để lấy bản mới nhất mà không cần tải lại trang.</div>
+    </div>
+    <div class="config-section">
+      <div class="config-section-title">Dọn dẹp lịch sử tải lên (lưu trong trình duyệt)</div>
+      <div class="config-row">
+        <label>Tự động xoá bản ghi cũ hơn (ngày)</label>
+        <input type="number" id="historyRetentionDays" class="small" min="0" value="0" placeholder="0">
+      </div>
+      <div class="config-hint">0 = tắt, giữ lịch sử vô hạn (mặc định). Đặt ví dụ 30 để tự xoá các lần tải cũ hơn 30 ngày mỗi khi mở dashboard, giúp trình duyệt đỡ nặng. Chỉ áp dụng cho bản lưu trong trình duyệt — không ảnh hưởng dữ liệu đã lưu trên Google Drive.</div>
+    </div>
+    <div class="config-row" style="margin-top:4px;">
+      <button id="saveConfig">Lưu cấu hình</button>
+      <span class="drive-status" id="driveStatus"></span>
+    </div>
+  </div>
+
+  <div class="upload-mode-row">
+    <span class="upload-mode-label">Chế độ tải file:</span>
+    <div class="sort-toggle" id="uploadModeToggle">
+      <button type="button" id="modeOverwrite" class="active">Ghi đè (mỗi lần tải thay toàn bộ)</button>
+      <button type="button" id="modeAccumulate">➕ Cộng dồn (gộp nhiều file làm 1)</button>
+    </div>
+    <span class="feed-btn" id="syncDriveBtn" style="margin-left:auto;">🔄 Đồng bộ ngay từ Drive</span>
+    <span class="drive-status" id="syncDriveStatus"></span>
+  </div>
+
+  <div class="feeds">
+    <label class="feed pick" id="dropPick">
+      <div class="feed-icon">PK</div>
+      <div class="feed-body">
+        <div class="feed-title">Picking — nguồn dữ liệu</div>
+        <div class="feed-sub" id="pickFileName">Chưa có file</div>
+        <div class="feed-drop">Kéo–thả file .xlsx/.csv vào đây (chọn được nhiều file), hoặc bấm để chọn</div>
+      </div>
+      <span class="feed-btn">Tải file</span>
+      <span class="feed-reset" id="resetPick" title="Xoá dữ liệu Pick đã cộng dồn">🗑</span>
+      <input type="file" id="pickInput" accept=".xlsx,.xls,.csv" multiple>
+    </label>
+    <label class="feed pack" id="dropPack">
+      <div class="feed-icon">PA</div>
+      <div class="feed-body">
+        <div class="feed-title">Packing — nguồn dữ liệu</div>
+        <div class="feed-sub" id="packFileName">Chưa có file</div>
+        <div class="feed-drop">Kéo–thả file .xlsx/.csv vào đây (chọn được nhiều file), hoặc bấm để chọn</div>
+      </div>
+      <span class="feed-btn">Tải file</span>
+      <span class="feed-reset" id="resetPack" title="Xoá dữ liệu Pack đã cộng dồn">🗑</span>
+      <input type="file" id="packInput" accept=".xlsx,.xls,.csv" multiple>
+    </label>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;" id="globalHourPanel">
+    <div class="panel-head">
+      <div class="panel-head-left"><div class="panel-title">🕘 Bộ lọc khung giờ — áp dụng cho toàn dashboard</div><div class="panel-note">KPI, RAG, các bảng tổng hợp, Captain, KPI Hourly, Chi tiết Indirect theo người, Chi tiết theo giờ — tất cả tự tính lại theo đúng khung giờ đang chọn</div></div>
+    </div>
+    <div class="table-controls" style="margin-bottom:10px;">
+      <span style="font-size:12px;color:var(--muted);flex-shrink:0;">Xem khung giờ:</span>
+      <select id="globalHourFrom" style="max-width:100px;flex:none;"></select>
+      <span style="color:var(--dim);">–</span>
+      <select id="globalHourTo" style="max-width:100px;flex:none;"></select>
+      <button type="button" class="dl-btn" id="globalHourReset">↺ Cả ca (00h–23h)</button>
+    </div>
+    <div class="rtable-note" style="margin:0 0 8px;">Chọn "Từ giờ" = "Đến giờ" để soi đúng 1 khung giờ (kể cả giờ không ai phát sinh sản lượng). Nếu "Từ giờ" lớn hơn "Đến giờ" (VD 22h → 04h), dashboard tự hiểu là khung giờ xuyên đêm.</div>
+    <div id="globalHourBanner" style="display:none;background:rgba(79,158,255,.1);border:1px solid var(--pick);color:var(--pick);border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:12px;"></div>
+  </div>
+
+  <div class="kpis" id="kpiRow">
+    <div class="kpi"><div class="kpi-label">Tổng nhân sự (unique)</div><div class="kpi-val" id="kpiTotal">—</div><div class="kpi-sub" id="kpiTotalSub">Pick + Pack</div></div>
+    <div class="kpi"><div class="kpi-label">Trùng cả 2 task</div><div class="kpi-val y" id="kpiOverlap">—</div><div class="kpi-sub">cần kiểm tra gán ca</div></div>
+    <div class="kpi"><div class="kpi-label">Pick — đạt Green</div><div class="kpi-val g" id="kpiPickGreen">—</div><div class="kpi-sub" id="kpiPickGreenSub">Sản lượng ≥ 200</div></div>
+    <div class="kpi"><div class="kpi-label">Pack — đạt Green</div><div class="kpi-val g" id="kpiPackGreen">—</div><div class="kpi-sub" id="kpiPackGreenSub">Sản lượng ≥ 25</div></div>
+    <div class="kpi"><div class="kpi-label">% Indirect (lượt-giờ)</div><div class="kpi-val" id="kpiIndirect">—</div><div class="kpi-sub" id="kpiIndirectSub">Pick vs Pack</div></div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">1. Tổng nhân sự</div>
+        <button class="dl-btn" onclick="downloadTable('tblHeadcount','tong-nhan-su')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải xuống</button>
+      </div>
+      <table class="rtable" id="tblHeadcount"></table>
+      <div class="rtable-note" id="overlapNote"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left"><div class="panel-title">2. Đạt target</div><div class="panel-note">theo mốc Xanh</div></div>
+        <button class="dl-btn" onclick="downloadTable('tblTarget','dat-target')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải xuống</button>
+      </div>
+      <table class="rtable" id="tblTarget"></table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-left"><div class="panel-title">3. Direct/Indirect &amp; Theo Captain</div><div class="panel-note">Trái: tổng quan Direct/Indirect theo lượt người-giờ · Phải: số người quản lý và % đạt target theo Captain — bấm tên Captain để lọc bảng chi tiết bên dưới</div></div>
+    </div>
+    <div class="split-grid">
+      <div>
+        <div class="panel-head mini">
+          <div class="panel-title mini">Direct / Indirect — tổng quan</div>
+          <button class="dl-btn" onclick="downloadTable('tblDirectIndirect','direct-indirect')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        </div>
+        <table class="rtable" id="tblDirectIndirect"></table>
+      </div>
+      <div>
+        <div class="panel-head mini">
+          <div class="panel-title mini">Tổng hợp theo Captain</div>
+          <button class="dl-btn" onclick="downloadTable('tblCaptain','tong-hop-theo-captain')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        </div>
+        <div class="table-scroll short">
+          <table class="rtable" id="tblCaptain"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-left"><div class="panel-title">4. Chi tiết theo khung giờ</div><div class="panel-note">Direct/Indirect · Đạt target/Dưới target mỗi giờ — theo đúng khung giờ đang chọn ở bộ lọc chung phía trên</div></div>
+      <button class="dl-btn" onclick="downloadHourly()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải xuống (2 sheet)</button>
+    </div>
+    <div class="hourly-grid">
+      <div>
+        <div class="task-pill" style="margin-bottom:8px;"><i style="background:var(--pick)"></i>Picking</div>
+        <div class="table-scroll short">
+          <table class="rtable" id="tblHourPick"></table>
+        </div>
+      </div>
+      <div>
+        <div class="task-pill" style="margin-bottom:8px;"><i style="background:var(--pack)"></i>Packing</div>
+        <div class="table-scroll short">
+          <table class="rtable" id="tblHourPack"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <div class="panel-title">📡 KPI Hourly</div>
+        <span class="target-badge" id="kpiHourlyTargetBadge">🎯 Target: — items/h</span>
+        <div class="panel-note" id="tableCount">0 dòng</div>
+      </div>
+      <button class="dl-btn" onclick="downloadPeople()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel</button>
+    </div>
+    <div class="kpi-toolbar">
+      <div class="zoom-ctrl">
+        <button type="button" id="zoomOut" title="Thu nhỏ bảng">－</button>
+        <span id="zoomLabel">100%</span>
+        <button type="button" id="zoomIn" title="Phóng to bảng">＋</button>
+      </div>
+      <span class="edit-toggle" id="editModeToggle" title="Bật/tắt cho phép sửa Station ID / Station Name / Captain trực tiếp trên bảng">🔒 Chế độ sửa: Tắt</span>
+      <div class="col-toggle-wrap">
+        <button type="button" class="col-toggle-btn" id="colToggleBtn">☰ Cột hiển thị</button>
+        <div class="col-toggle-menu" id="colToggleMenu">
+          <label><input type="checkbox" data-col="staffName" checked> Staff Name</label>
+          <label><input type="checkbox" data-col="stationId" checked> Station ID</label>
+          <label><input type="checkbox" data-col="stationName" checked> Station Name</label>
+          <label><input type="checkbox" data-col="captain" checked> Captain</label>
+        </div>
+      </div>
+    </div>
+    <div class="table-controls">
+      <input type="text" id="searchBox" placeholder="Tìm theo email...">
+      <select id="taskFilter">
+        <option value="all">Tất cả task</option>
+        <option value="pick">Chỉ Pick</option>
+        <option value="pack">Chỉ Pack</option>
+      </select>
+      <select id="captainFilter">
+        <option value="all">Tất cả Captain</option>
+      </select>
+      <div class="sort-toggle">
+        <button type="button" id="sortHighFirst" class="active">TOTAL: Cao → Thấp</button>
+        <button type="button" id="sortLowFirst">🔻 Thấp → Cao</button>
+      </div>
+    </div>
+    <div class="rtable-note" style="margin-top:-4px;margin-bottom:10px;">✎ Bật <b>Chế độ sửa</b> ở trên để chỉnh Station ID / Station Name / Captain trực tiếp trên bảng — dashboard sẽ nhớ và tự áp lại cho người đó ở các lần tải file sau. Màu ô theo giờ: đỏ &lt; 70% target · vàng 70–99% · xanh ≥ target (target lấy theo Task tương ứng của từng dòng, chỉnh ở ⚙ Cấu hình). Bấm vào tiêu đề 1 cột giờ để sắp xếp theo đúng giờ đó. Các cột giờ hiển thị theo đúng khung giờ đang chọn ở bộ lọc chung phía trên.</div>
+    <div class="table-scroll tall">
+      <table id="kpiHourlyTable">
+        <thead>
+          <tr id="theadRow">
+            <th>#</th>
+            <th data-k="email">Email</th>
+            <th data-k="staffName" class="col-staffName">Staff Name</th>
+            <th data-k="stationId" class="col-stationId">Station ID</th>
+            <th data-k="stationName" class="col-stationName">Station Name</th>
+            <th data-k="captain" class="col-captain">Captain</th>
+            <th data-k="efficiency" class="num total-col">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="7" class="empty">Chưa có dữ liệu — tải file Picking / Packing ở trên</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pg-bar" id="kpiHourlyPagination"></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <div class="panel-title">🔍 Chi tiết Indirect theo người</div>
+        <div class="panel-note" id="indirectDetailNote">Từng khung giờ trong bộ lọc chung — ô trống/= 0 được đánh dấu <b style="color:var(--red);">Indirect</b></div>
+      </div>
+      <div class="panel-head-right">
+        <button type="button" class="dl-btn" id="indirectFullscreenBtn" title="Mở bảng này ở chế độ toàn màn hình"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Toàn màn hình</button>
+        <button class="dl-btn" onclick="downloadIndirectDetail()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Tải xuống</button>
+      </div>
+    </div>
+    <div id="indirectDetailAnchor"></div>
+    <div id="indirectDetailBody">
+      <div class="table-controls" style="margin-top:-2px;">
+        <select id="indirectTaskFilter" title="Lọc bảng này theo Task">
+          <option value="all">Tất cả task</option>
+          <option value="pick">Chỉ Pick</option>
+          <option value="pack">Chỉ Pack</option>
+        </select>
+        <select id="indirectCaptainFilter" title="Lọc bảng này theo Captain">
+          <option value="all">Tất cả Captain</option>
+        </select>
+      </div>
+      <div class="rtable-note" style="margin-top:-4px;margin-bottom:10px;">Lọc riêng theo Task/Captain cho bảng này (ô tìm email vẫn dùng chung với bảng 📡 KPI Hourly phía trên). Với mỗi khung giờ trong khoảng đang chọn ở bộ lọc chung: có sản lượng &gt; 0 → hiện số; không có giá trị hoặc = 0 → hiện <b style="color:var(--red);">Indirect</b> (đậm, đỏ). Cột cuối đếm tổng số giờ Indirect của người đó trong khoảng đang xem.</div>
+      <div class="table-scroll tall">
+        <table class="rtable" id="tblIndirectDetail"></table>
+      </div>
+      <div class="pg-bar" id="indirectDetailPagination"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-left"><div class="panel-title">🕘 Lịch sử tải lên (data thô)</div><div class="panel-note" id="histCount">0 lần tải</div></div>
+      <div class="hist-controls">
+        <select id="histTaskFilter">
+          <option value="all">Tất cả task</option>
+          <option value="pick">Chỉ Pick</option>
+          <option value="pack">Chỉ Pack</option>
+        </select>
+        <select id="histDateFilter"><option value="all">Tất cả ngày</option></select>
+        <button class="dl-btn" id="clearAllHistory" title="Xoá toàn bộ lịch sử tải lên đã lưu trong trình duyệt này">🗑 Xoá lịch sử</button>
+      </div>
+    </div>
+    <div class="table-scroll short">
+      <table class="rtable" id="tblHistory"></table>
+    </div>
+    <div class="rtable-note">Mỗi lần bạn tải file Picking/Packing lên, dashboard lưu lại một bản riêng — không đè lên lần trước, không giới hạn thời gian. "Xem lại" nạp đúng data thô của lần đó vào dashboard (không lưu đè lên bản mới nhất); "Tải raw" xuất ra .xlsx. Nếu đã cấu hình Google Drive, mỗi lần tải cũng được lưu thành 1 file JSON riêng trên Drive — bền hơn (không mất khi xoá cache trình duyệt) và xem được từ máy khác.</div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      <div class="panel-head-left"><div class="panel-title">☁️ Lịch sử trên Google Drive</div><div class="panel-note" id="driveHistCount">Chưa tải danh sách</div></div>
+      <div class="hist-controls">
+        <select id="driveHistTaskFilter">
+          <option value="all">Tất cả task</option>
+          <option value="pick">Chỉ Pick</option>
+          <option value="pack">Chỉ Pack</option>
+        </select>
+        <select id="driveHistDateFilter"><option value="all">Tất cả ngày</option></select>
+        <button class="dl-btn" id="refreshDriveHistory" title="Tải danh sách các file đã lưu trên Google Drive">🔄 Tải danh sách từ Drive</button>
+      </div>
+    </div>
+    <div class="rtable-note" id="driveHistStatus" style="margin-top:-4px;"></div>
+    <div class="table-scroll short">
+      <table class="rtable" id="tblDriveHistory"></table>
+    </div>
+    <div class="rtable-note">"Xem lại" và "Tải raw" ở đây sẽ tải nội dung file đó về ngay từ Drive (không cần mở Drive thủ công). Danh sách không tự làm mới — bấm "🔄 Tải danh sách từ Drive" mỗi khi muốn cập nhật.</div>
+  </div>
+
+  <div class="footer-note">
+    Dữ liệu xử lý hoàn toàn trên trình duyệt — không upload lên server nào (trừ khi bạn cấu hình Drive Web App). Xoá bản ghi nhớ phiên gần nhất (không phải lịch sử tải lên): <span style="text-decoration:underline;cursor:pointer;color:var(--muted);" id="clearHistory">bấm vào đây</span>.
+  </div>
+
+  <div class="modal-overlay" id="readmeModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>❔ Hướng dẫn đọc dashboard</h2>
+        <span class="modal-close" id="readmeCloseBtn">✕ Đóng</span>
+      </div>
+      <div class="modal-body">
+
+        <div class="readme-item">
+          <h3>1. KPI row (đầu trang)</h3>
+          <p>Tổng nhân sự (hợp Pick ∪ Pack, không đếm trùng), số người trùng cả 2 task, % người đạt mốc Xanh theo Sản lượng cả ca (ngưỡng chỉnh ở <code>⚙ Cấu hình</code>), và % Indirect (tỉ lệ lượt người-giờ không phát sinh sản lượng).</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>🕘 Bộ lọc khung giờ (dùng chung cho cả dashboard)</h3>
+          <p>Chọn "Từ giờ – Đến giờ" ở panel trên cùng (hỗ trợ ca xuyên đêm, VD 22h→04h; chọn "Từ giờ" = "Đến giờ" để soi đúng 1 khung giờ). Toàn bộ dashboard — KPI row, RAG, các bảng tổng hợp, Tổng hợp theo Captain, KPI Hourly, Chi tiết Indirect theo người, Chi tiết theo khung giờ — đều tự tính lại Sản lượng/Direct-Indirect theo đúng khung giờ đang chọn. Bấm "↺ Cả ca" để xem lại toàn bộ 24 giờ.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>1-2. Hai bảng tổng hợp: Tổng nhân sự · Đạt target</h3>
+          <p>Mỗi bảng có dòng Tổng (grand-total) và nút tải Excel riêng. "Đạt target" tính theo mốc Xanh của Sản lượng cả ca.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>3. Direct/Indirect &amp; Theo Captain</h3>
+          <p>Gộp chung 1 khung, 2 bảng nhỏ cạnh nhau. <b>Trái — Direct/Indirect tổng quan:</b> tính theo lượt người-giờ (mỗi người × mỗi giờ trong ca là 1 lượt; Direct = giờ đó có phát sinh sản lượng). <b>Phải — Theo Captain:</b> gom theo cột Captain (Pick + Pack), cho mỗi Captain số người quản lý, số người đạt target và % đạt target (người chưa gán Captain gộp vào "(chưa gán)"). Bấm vào tên Captain để lọc nhanh bảng "📡 KPI Hourly" và "🔍 Chi tiết Indirect theo người" bên dưới theo đúng Captain đó.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>4. Chi tiết theo khung giờ</h3>
+          <p>Với mỗi giờ trong khung đang chọn ở bộ lọc chung phía trên (Pick và Pack tách riêng): số người Direct/Indirect, và số người Đạt/Dưới Target giờ (ngưỡng "Target theo khung giờ" chỉnh ở <code>⚙ Cấu hình</code>). Dòng Tổng tự tính lại theo đúng khoảng đã chọn, và nút tải Excel 2 sheet (khớp đúng khoảng giờ đang xem).</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>📡 KPI Hourly (bảng chi tiết theo người)</h3>
+          <p><b>Cột:</b> #, Email (kèm tag PICK/PACK), Staff Name, Station ID/Name, Captain (sửa được), TOTAL (= tổng sản lượng mọi giờ trong file, tô nền xanh nhạt), rồi các cột giờ — chỉ hiện những giờ thực sự có dữ liệu trong file đang xem, xếp giảm dần. Dòng <b>Total</b> trên cùng luôn cộng dồn theo <i>toàn bộ</i> danh sách đang lọc (không chỉ trang đang xem). Bảng phân trang <b>20 dòng/trang</b> — dùng thanh điều hướng trang phía dưới bảng để chuyển trang, số thứ tự # tính liên tục qua các trang.</p>
+          <p><b>Màu ô theo giờ:</b> xanh = đạt Target giờ, vàng = 70–99% Target, đỏ = dưới 70% Target — Target lấy theo đúng Task (Pick/Pack) của dòng đó, chỉnh ở <code>⚙ Cấu hình</code> mục "Target theo khung giờ".</p>
+          <p><b>Bộ lọc/sắp xếp:</b> tìm theo email, lọc Task, lọc theo Captain, sắp xếp TOTAL cao↔thấp, hoặc bấm tiêu đề bất kỳ cột nào (kể cả từng cột giờ) để sắp xếp theo đúng cột đó. Các cột giờ hiển thị và TOTAL đều theo đúng khung giờ đang chọn ở bộ lọc chung phía trên (chọn "Từ giờ" = "Đến giờ" để soi chính xác 1 khung giờ, kể cả khi giờ đó không ai phát sinh sản lượng).</p>
+          <p><b>Thanh công cụ trên bảng:</b> <code>－ 100% ＋</code> phóng to/thu nhỏ chữ trong bảng cho dễ nhìn (tự nhớ lần sau); <code>🔒/🔓 Chế độ sửa</code> — bật lên mới sửa được Station ID/Station Name/Captain trực tiếp trong bảng (để tránh sửa nhầm khi chỉ xem); <code>☰ Cột hiển thị</code> — ẩn/hiện Staff Name, Station ID, Station Name, Captain nếu muốn bảng gọn hơn.</p>
+          <p>Sửa Station ID/Station Name/Captain của 1 người sẽ được nhớ theo email và tự áp lại cho các lần tải file sau, kể cả khi file gốc không có sẵn 3 cột đó.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>🔍 Chi tiết Indirect theo người</h3>
+          <p>Mục tiêu là soi nhanh từng người Indirect ở đúng những khung giờ nào. Bảng có <b>bộ lọc Task/Captain riêng</b> (độc lập với bảng "📡 KPI Hourly" phía trên) — chỉ dùng chung ô tìm email và thứ tự sắp xếp. Phân trang <b>20 dòng/trang</b> như KPI Hourly.</p>
+          <p><b>Logic:</b> với mỗi cột giờ trong khung đang chọn ở bộ lọc chung — nếu người đó có sản lượng &gt; 0 thì hiện số; nếu ô trống hoặc = 0 thì hiện <b style="color:var(--red);">Indirect</b> (chữ đậm, màu đỏ). Cột cuối "Số giờ Indirect" đếm tổng số giờ Indirect trên tổng số giờ đang xem, giúp so sánh nhanh giữa các người.</p>
+          <p><b>⤢ Toàn màn hình:</b> mở bảng này (kèm 2 bộ lọc + phân trang) trong 1 popup lớn hơn để xem/lọc thoải mái, đặc biệt hữu ích khi có nhiều cột giờ. Đóng bằng nút ✕, bấm ra ngoài popup, hoặc phím Esc.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>🕘 Lịch sử tải lên (local, trong trình duyệt)</h3>
+          <p>Mỗi lần tải file Picking/Packing là 1 bản ghi riêng, không đè lên lần trước. "Xem lại" nạp đúng dữ liệu thô của lần đó vào dashboard (có banner cảnh báo + nút quay về bản mới nhất); "Tải raw" xuất ra file Excel. Có thể đặt tự động xoá bớt các bản cũ hơn N ngày ở <code>⚙ Cấu hình</code> (mặc định tắt, giữ vô hạn).</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>☁️ Lịch sử trên Google Drive</h3>
+          <p>Nếu đã cấu hình URL Apps Script Web App, mỗi lần tải file cũng lưu thêm 1 file JSON riêng trên Drive. Panel này gọi thẳng tới Drive để liệt kê, xem lại và tải raw các file đó — không cần mở Google Drive thủ công. Bấm "🔄 Tải danh sách từ Drive" để nạp; script cần có hàm <code>doGet</code> (xem code cập nhật ở cuối trang) mới dùng được tính năng này.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>🔄 Chia sẻ dữ liệu cho người khác (đồng bộ qua Drive)</h3>
+          <p>Nếu đã cấu hình Apps Script Web App URL: mỗi lần tải file, ngoài lịch sử, dashboard còn ghi đè "bản mới nhất dùng chung" lên Drive. <b>Ai khác dán đúng URL đó vào ⚙ Cấu hình của họ</b> (dùng chung 1 dashboard/link) sẽ tự thấy đúng bản Pick/Pack mới nhất bạn vừa tải — ngay khi họ mở link (nếu bật "Tự động đồng bộ..."), hoặc bấm nút "🔄 Đồng bộ ngay từ Drive" cạnh 2 ô tải file để lấy ngay không cần tải lại trang. <code>localStorage</code> của trình duyệt (không cấu hình Drive) chỉ lưu trên đúng máy đó, không chia sẻ được cho người khác — muốn nhiều người cùng thấy 1 nguồn data thì bắt buộc phải dùng đường Drive này.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>⚙ Cấu hình</h3>
+          <p>Chỉnh ngưỡng Đỏ/Xanh của Sản lượng cả ca (dùng cho % đạt target, KPI row, các bảng tổng hợp), Target theo khung giờ (dùng cho mục 4 và màu ô trong KPI Hourly), URL Google Apps Script Web App (dùng chung cho lưu và xem lại Drive), và số ngày tự động dọn lịch sử local.</p>
+        </div>
+
+        <div class="readme-item">
+          <h3>Xuất báo cáo</h3>
+          <p>Nút "Xuất báo cáo" ở góc trên gộp tất cả bảng đang có (Tổng nhân sự, Đạt target, Direct/Indirect, Theo Captain, Chi tiết theo giờ Pick/Pack, KPI Hourly, Chi tiết Indirect theo người — đang lọc) vào 1 file Excel nhiều sheet.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="indirectFullscreenModal">
+    <div class="modal-box fullscreen-box">
+      <div class="fullscreen-bar">
+        <b>🔍 Chi tiết Indirect theo người — Toàn màn hình</b>
+        <span class="modal-close" id="indirectFullscreenClose">✕ Đóng (Esc)</span>
+      </div>
+      <div class="fullscreen-inner" id="indirectFullscreenSlot"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <div class="panel-head"><div class="panel-title">Hướng dẫn: lưu lịch sử tải lên (không giới hạn) vào Google Drive</div></div>
+    <div class="rtable-note" style="font-size:12px;">
+      1. Vào <code>script.google.com</code> → <b>New project</b>, xoá code mẫu, dán đoạn script bên dưới.<br>
+      2. Sửa <code>FOLDER_ID</code> = ID của folder Drive bạn muốn lưu (mở folder trên Drive, lấy chuỗi trong URL sau <code>/folders/</code>).<br>
+      3. <b>Deploy → New deployment → Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Bấm Deploy, cấp quyền, copy URL dạng <code>.../exec</code>.<br>
+      4. Dán URL đó vào ô "Apps Script Web App URL" trong ⚙ Cấu hình → Lưu cấu hình.<br>
+      5. Từ lần tải file tiếp theo: <b>mỗi lần</b> bạn tải 1 file Pick hoặc Pack lên, dashboard tạo <b>1 file JSON riêng</b> trên Drive (kèm data thô từng người + số tổng hợp lúc đó) — không đè lên lần trước, không giới hạn số lượng/thời gian. Tên file dạng <code>productivity_pick_2026-07-11_10-00-05.json</code>, nên bạn có thể lật lại đúng bản đã tải ở bất kỳ giờ nào, kể cả trên máy khác.<br>
+      6. Đoạn code bên dưới cũng có sẵn hàm <code>doGet</code> để dashboard <b>xem lại danh sách + nội dung các file trên Drive ngay trong panel "☁️ Lịch sử trên Google Drive"</b>, không cần mở Drive thủ công. Dùng chung 1 URL <code>.../exec</code> cho cả lưu (POST) lẫn xem lại (GET).<br>
+      7. <b>Chia sẻ dữ liệu cho người khác:</b> mỗi lần tải file, ngoài file lịch sử ở bước 5, đoạn code còn tự ghi đè 2 file cố định <code>latest_pick.json</code> / <code>latest_pack.json</code> — đây là "bản mới nhất dùng chung". Khi <b>ai đó khác cũng dán đúng URL <code>.../exec</code> này</b> vào ⚙ Cấu hình của họ (cùng share link dashboard cho họ), dashboard của họ sẽ <b>tự tải bản mới nhất đó ngay khi mở trang</b> (bật sẵn ở checkbox "Tự động đồng bộ..."), hoặc bấm nút <b>"🔄 Đồng bộ ngay từ Drive"</b> cạnh 2 ô tải file để lấy ngay mà không cần tải lại trang. Nói cách khác: <b>bạn tải file lên → người khác mở link (hoặc bấm Đồng bộ) → thấy đúng dữ liệu bạn vừa tải</b>, không cần gửi file qua lại.<br>
+      <span style="color:var(--yellow);">Nếu bạn từng dùng bản Apps Script cũ (chỉ có doPost, hoặc chưa có action=latest), hãy thay toàn bộ bằng đoạn code mới bên dưới rồi <b>Deploy → Manage deployments → sửa (biểu tượng bút chì) → Version: New version → Deploy</b> để cập nhật (không tạo deployment mới, để giữ nguyên URL cũ).</span>
+      <br><br>
+      <b>Code Apps Script (copy nguyên đoạn, thay cho code cũ):</b>
+      <pre style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:11px;overflow-x:auto;color:var(--text);font-family:var(--mono);line-height:1.6;">function doPost(e) {
+  // Nếu bạn bấm nút "Run" trong editor để test, e sẽ là undefined —
+  // đây không phải lỗi, chỉ là doPost cần được gọi bằng 1 request POST thật.
+  // Dùng hàm testDoPost() bên dưới để test tay, hoặc deploy rồi tải file thử trên dashboard.
+  if (!e || !e.postData) {
+    return ContentService.createTextOutput(JSON.stringify({status:'error', message:'Không có POST data — hãy gọi qua testDoPost() hoặc gửi request POST thật, đừng bấm Run trực tiếp trên doPost.'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var FOLDER_ID = 'DÁN_FOLDER_ID_VÀO_ĐÂY';
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var data = JSON.parse(e.postData.contents);
+  var content = JSON.stringify(data, null, 2);
+
+  // 1) Lưu lịch sử: mỗi lần tải là 1 file riêng, không tìm/đè file cũ -> lưu lịch sử không giới hạn.
+  var safeTime = (data.timeStr || '00-00-00').replace(/:/g, '-');
+  var fileName = 'productivity_' + data.task + '_' + data.dateStr + '_' + safeTime + '.json';
+  folder.createFile(fileName, content, MimeType.PLAIN_TEXT);
+
+  // 2) Ghi đè "bản mới nhất dùng chung" — để người khác mở link (hoặc bấm Đồng bộ) là thấy ngay, không cần gửi file qua lại.
+  var latestName = 'latest_' + data.task + '.json';
+  var existing = folder.getFilesByName(latestName);
+  if (existing.hasNext()) {
+    existing.next().setContent(content);
+  } else {
+    folder.createFile(latestName, content, MimeType.PLAIN_TEXT);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({status:'ok', file:fileName}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Cho phép dashboard xem lại danh sách + nội dung các file đã lưu, và đồng bộ "bản mới nhất dùng chung" — không cần mở Drive thủ công.
+// GET .../exec                        → liệt kê tất cả file lịch sử (đọc từ tên file, không mở từng file nên nhanh)
+// GET .../exec?action=get&id=<fileId> → trả về nguyên nội dung JSON của 1 file lịch sử (data thô + summary)
+// GET .../exec?action=latest          → trả về bản mới nhất dùng chung của CẢ Pick lẫn Pack ({pick:{...}, pack:{...}})
+// GET .../exec?action=latest&task=pick → chỉ trả về bản mới nhất của riêng Pick (hoặc pack)
+function doGet(e) {
+  var FOLDER_ID = 'DÁN_FOLDER_ID_VÀO_ĐÂY';
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var action = (e && e.parameter && e.parameter.action) || 'list';
+
+  if (action === 'latest') {
+    var task = e.parameter.task;
+    var tasks = task ? [task] : ['pick', 'pack'];
+    var out = {};
+    for (var i = 0; i < tasks.length; i++) {
+      var t = tasks[i];
+      var files = folder.getFilesByName('latest_' + t + '.json');
+      out[t] = files.hasNext() ? JSON.parse(files.next().getBlob().getDataAsString()) : null;
+    }
+    return ContentService.createTextOutput(JSON.stringify({status:'ok', data: out}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'get') {
+    var id = e.parameter.id;
+    if (!id) {
+      return ContentService.createTextOutput(JSON.stringify({status:'error', message:'Thiếu tham số id.'}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var file = DriveApp.getFileById(id);
+    var content = file.getBlob().getDataAsString();
+    // trả thẳng nội dung JSON gốc của file (đã có sẵn cấu trúc {dateStr, timeStr, task, fileName, employees, summary})
+    return ContentService.createTextOutput(content).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // action === 'list': chỉ đọc TÊN file lịch sử (không mở nội dung) để nhanh kể cả khi có rất nhiều file — bỏ qua latest_*.json.
+  var files = folder.getFilesByType(MimeType.PLAIN_TEXT);
+  var out = [];
+  while (files.hasNext()) {
+    var f = files.next();
+    var name = f.getName();
+    var m = /^productivity_(pick|pack)_(\d{4}-\d{2}-\d{2})_([\d-]+)\.json$/.exec(name);
+    if (!m) continue; // bỏ qua latest_*.json và file không đúng định dạng do doPost tạo ra
+    out.push({
+      id: f.getId(),
+      fileName: name,
+      task: m[1],
+      dateStr: m[2],
+      timeStr: m[3].replace(/-/g, ':')
+    });
+  }
+  return ContentService.createTextOutput(JSON.stringify({status:'ok', files: out}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Chọn hàm này trong dropdown "Run" của editor rồi bấm Run để test tay
+// (giả lập 1 request POST) mà không cần deploy hay đụng tới dashboard.
+function testDoPost() {
+  var fakeEvent = {
+    postData: {
+      contents: JSON.stringify({
+        dateStr: '2026-01-01',
+        timeStr: '10:00:00',
+        task: 'pick',
+        fileName: 'test.xlsx',
+        fileNames: ['test.xlsx'],
+        generatedAt: new Date().toISOString(),
+        employees: [{ email:'a@test.com', staffName:'Test User', stationId:'', stationName:'', captain:'', efficiency:210, accumulated:210, activeHours:3, chron:new Array(24).fill(0) }],
+        summary: { note: 'du lieu test' }
+      })
+    }
+  };
+  var result = doPost(fakeEvent);
+  Logger.log(result.getContent());
+}
+
+// Chọn hàm này trong dropdown "Run" để test tay việc liệt kê danh sách file (giả lập GET ?action=list)
+function testDoGet() {
+  var result = doGet({ parameter: {} });
+  Logger.log(result.getContent());
+}
+
+// Chọn hàm này để test tay việc đồng bộ "bản mới nhất dùng chung" (giả lập GET ?action=latest) — chạy sau testDoPost() để có dữ liệu.
+function testDoGetLatest() {
+  var result = doGet({ parameter: { action: 'latest' } });
+  Logger.log(result.getContent());
+}</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- storage (works both inside Claude artifact preview and as a standalone deployed file) ----------
+// If window.storage exists (Claude.ai artifact sandbox) we use it. Otherwise (plain hosting,
+// GitHub Pages, your own server) we fall back to the browser's localStorage automatically.
+const storage = {
+  async get(key, shared=false){
+    if (window.storage) { try { return await window.storage.get(key, shared); } catch(e){ return null; } }
+    try { const raw = localStorage.getItem(key); return raw===null ? null : { key, value: raw, shared }; }
+    catch(e){ return null; }
+  },
+  async set(key, value, shared=false){
+    if (window.storage) { try { return await window.storage.set(key, value, shared); } catch(e){ return null; } }
+    try { localStorage.setItem(key, value); return { key, value, shared }; }
+    catch(e){ return null; }
+  },
+  async delete(key, shared=false){
+    if (window.storage) { try { return await window.storage.delete(key, shared); } catch(e){ return null; } }
+    try { localStorage.removeItem(key); return { key, deleted:true, shared }; }
+    catch(e){ return null; }
+  }
+};
+
+// ---------- clock ----------
+function tick(){
+  const d = new Date();
+  document.getElementById('clockTime').textContent = d.toLocaleTimeString('vi-VN',{hour12:false});
+  document.getElementById('clockDate').textContent = d.toLocaleDateString('vi-VN',{weekday:'long',year:'numeric',month:'2-digit',day:'2-digit'});
+}
+tick(); setInterval(tick,1000);
+
+// ---------- state ----------
+// rawState: dữ liệu gốc, đầy đủ 24h, không phụ thuộc bộ lọc khung giờ — nguồn sự thật duy nhất.
+// state: dữ liệu "view" suy ra từ rawState theo đúng khung giờ đang chọn ở bộ lọc chung (globalHourFrom/To) — mọi bảng/biểu đồ đọc từ đây.
+let rawState = { pick: null, pack: null };
+let state = { pick: null, pack: null };
+let currentActiveHourCount = 24; // số giờ đang được tính trong khung giờ đã chọn (dùng để hiển thị nhãn "x N giờ")
+let sortState = { key:'efficiency', dir:'desc' };
+let editMode = false;
+let zoomLevel = 100; // %
+
+// ---------- phân trang: 📡 KPI Hourly & 🔍 Chi tiết Indirect theo người (độc lập với nhau) ----------
+const ROWS_PER_PAGE = 20;
+let kpiHourlyPage = 1;
+let indirectDetailPage = 1;
+
+const THRESH = {
+  pick: { redUnder:170, greenAt:200 },
+  pack: { redUnder:16,  greenAt:25  }
+};
+const HOUR_TARGET = { pick:200, pack:25 };
+
+// ---------- station/captain manual overrides (theo email, áp dụng cho mọi lần tải sau) ----------
+let stationOverrides = {};
+async function loadStationOverrides(){
+  try {
+    const res = await storage.get('station_overrides', false);
+    stationOverrides = (res && res.value) ? JSON.parse(res.value) : {};
+  } catch(e){ stationOverrides = {}; }
+}
+async function saveStationOverrides(){
+  try { await storage.set('station_overrides', JSON.stringify(stationOverrides), false); } catch(e){}
+}
+function applyStationOverrides(employees){
+  employees.forEach(e=>{
+    const ov = stationOverrides[e.email];
+    if (!ov) return;
+    if (ov.stationId!==undefined) e.stationId = ov.stationId;
+    if (ov.stationName!==undefined) e.stationName = ov.stationName;
+    if (ov.captain!==undefined) e.captain = ov.captain;
+  });
+}
+async function setStationOverride(email, field, value){
+  if (!stationOverrides[email]) stationOverrides[email] = {};
+  stationOverrides[email][field] = value;
+  await saveStationOverrides();
+  ['pick','pack'].forEach(task=>{
+    if (rawState[task]){
+      const emp = rawState[task].employees.find(e=>e.email===email);
+      if (emp) emp[field] = value;
+    }
+    if (state[task]){
+      const emp = state[task].employees.find(e=>e.email===email);
+      if (emp) emp[field] = value;
+    }
+  });
+}
+
+function classifyRag(task, eff){
+  const t = THRESH[task];
+  if (eff >= t.greenAt) return 'green';
+  if (eff >= t.redUnder) return 'yellow';
+  return 'red';
+}
+function computeRagCounts(employees, task){
+  const rag = {red:0, yellow:0, green:0};
+  employees.forEach(e=> rag[classifyRag(task, e.efficiency)]++);
+  return rag;
+}
+
+// ---------- parsing ----------
+// Nhận file kiểu "OB-Individual-KPI_VNA_pick/pack_....csv|xlsx":
+// dòng tiêu đề có "Email", "Staff Name", (tuỳ chọn) "Station ID"/"Station Name"/"Captain",
+// rồi các cột giờ dạng "10h".."00h" (số lượng/thứ tự cột giờ linh hoạt, không cố định 24 cột),
+// cột "TOTAL" cuối file KHÔNG được dùng — Sản lượng luôn tự tính = tổng các cột giờ.
+function normCell(v){ return (v===undefined||v===null) ? '' : (v+'').replace(/\uFEFF/g,'').trim(); }
+
+function parseWorkbook(ab){
+  const wb = XLSX.read(ab, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+  if (!rows.length) throw new Error('File rỗng hoặc không đọc được.');
+
+  const header = rows[0].map(normCell);
+  const lower = header.map(h=>h.toLowerCase());
+
+  const idxEmail = lower.findIndex(h=>h==='email');
+  if (idxEmail===-1) throw new Error('Không tìm thấy cột "Email" trong dòng tiêu đề của file.');
+  const idxStaffName = lower.findIndex(h=>h==='staff name');
+  const idxStationId = lower.findIndex(h=>h==='station id');
+  const idxStationName = lower.findIndex(h=>h==='station name');
+  const idxCaptain = lower.findIndex(h=>h==='captain');
+
+  // cột giờ: linh hoạt, nhận diện bằng regex "NNh" (00h..23h), không phụ thuộc vị trí/số lượng cột cố định
+  const hourCols = [];
+  header.forEach((h,colIdx)=>{
+    const m = /^(\d{1,2})h$/i.exec(h);
+    if (m){
+      const hour = parseInt(m[1],10);
+      if (hour>=0 && hour<=23) hourCols.push({ colIdx, hour });
+    }
+  });
+  if (!hourCols.length) throw new Error('Không tìm thấy cột giờ nào (dạng "00h".."23h") trong file.');
+
+  const employees = [];
+  for (let i=1; i<rows.length; i++){
+    const r = rows[i];
+    const email = normCell(r[idxEmail]);
+    if (!email) continue;
+    const staffName = idxStaffName!==-1 ? normCell(r[idxStaffName]) : email;
+    const stationId = idxStationId!==-1 ? normCell(r[idxStationId]) : '';
+    const stationName = idxStationName!==-1 ? normCell(r[idxStationName]) : '';
+    const captain = idxCaptain!==-1 ? normCell(r[idxCaptain]) : '';
+
+    const chron = new Array(24).fill(0);
+    hourCols.forEach(({colIdx,hour})=>{ chron[hour] = Number(r[colIdx])||0; });
+
+    // Sản lượng (accumulated) = tổng các cột giờ. Cột "TOTAL" trong file gốc không dùng
+    // (không phải luôn bằng tổng sản lượng — có thể là số liệu khác tuỳ hệ thống nguồn).
+    const accumulated = chron.reduce((a,b)=>a+b,0);
+    const activeHours = chron.filter(v=>v>0).length; // số giờ có phát sinh sản lượng — chỉ mang tính tham khảo
+    const efficiency = accumulated; // dùng trực tiếp Sản lượng ngày để so ngưỡng RAG (không có Manhour nguồn để tính rate)
+
+    employees.push({ email, staffName, stationId, stationName, captain, efficiency, accumulated, activeHours, chron });
+  }
+  applyStationOverrides(employees);
+  return employees;
+}
+
+function computeStats(employees, hours){
+  // hours: danh sách giờ (0-23) đang nằm trong khung giờ đã chọn ở bộ lọc chung. Mặc định = cả 24 giờ.
+  const hourList = (hours && hours.length) ? hours : Array.from({length:24},(_,h)=>h);
+  const hourlyActive = new Array(24).fill(0);
+  let directSlots = 0, totalSlots = 0;
+  employees.forEach(e=>{
+    hourList.forEach(h=>{
+      totalSlots++;
+      const v = e.chron[h] || 0;
+      if (v>0){ directSlots++; hourlyActive[h]++; }
+    });
+  });
+  return { count: employees.length, hourlyActive, directSlots, totalSlots,
+           indirectPct: totalSlots ? (100*(totalSlots-directSlots)/totalSlots) : 0 };
+}
+
+// ---------- bộ lọc khung giờ chung cho toàn dashboard ----------
+function getHourRange(){
+  const fromEl = document.getElementById('globalHourFrom');
+  const toEl = document.getElementById('globalHourTo');
+  const from = parseInt(fromEl.value,10);
+  const to = parseInt(toEl.value,10);
+  return { from: isNaN(from)?0:from, to: isNaN(to)?23:to };
+}
+function hourInRange(h, from, to){
+  return from<=to ? (h>=from && h<=to) : (h>=from || h<=to); // from>to = khung giờ xuyên đêm (VD 22h -> 04h)
+}
+function hoursInRangeList(from, to){
+  const list = [];
+  for (let h=0; h<24; h++) if (hourInRange(h, from, to)) list.push(h);
+  return list;
+}
+// Tính lại state (view) từ rawState (dữ liệu gốc) theo đúng khung giờ đang chọn.
+// Mọi hàm render đọc từ `state` — chỉ cần gọi applyGlobalHourFilter() trước khi render là toàn bộ
+// dashboard (KPI, RAG, các bảng tổng hợp, Captain, KPI Hourly, Chi tiết Indirect theo người, Chi tiết theo giờ) tự khớp.
+function applyGlobalHourFilter(){
+  const { from, to } = getHourRange();
+  const hours = hoursInRangeList(from, to);
+  currentActiveHourCount = hours.length;
+  const hourSet = new Set(hours);
+  ['pick','pack'].forEach(task=>{
+    const raw = rawState[task];
+    if (!raw){ state[task] = null; return; }
+    const employees = raw.employees.map(e=>{
+      const chron = e.chron.map((v,h)=> hourSet.has(h) ? v : 0);
+      const accumulated = chron.reduce((a,b)=>a+b,0);
+      const activeHours = chron.filter(v=>v>0).length;
+      return { ...e, chron, accumulated, efficiency: accumulated, activeHours };
+    });
+    state[task] = { fileName: raw.fileName, fileNames: raw.fileNames, employees, stats: computeStats(employees, hours) };
+  });
+}
+function updateGlobalHourBanner(){
+  const { from, to } = getHourRange();
+  const banner = document.getElementById('globalHourBanner');
+  const isFullDay = (from===0 && to===23);
+  if (isFullDay){ banner.style.display = 'none'; return; }
+  const single = (from===to);
+  const rangeLabel = String(from).padStart(2,'0')+'h' + (single ? '' : '–'+String(to).padStart(2,'0')+'h');
+  let totalPeople = 0, activePeople = 0, totalQty = 0;
+  ['pick','pack'].forEach(task=>{
+    if (!state[task]) return;
+    state[task].employees.forEach(e=>{
+      totalPeople++;
+      totalQty += e.accumulated;
+      if (e.accumulated>0) activePeople++;
+    });
+  });
+  banner.style.display = 'block';
+  banner.textContent = `📍 Đang lọc khung giờ ${rangeLabel}${single?' (1 giờ)':''} — áp dụng cho toàn bộ dashboard: ${activePeople}/${totalPeople} người có phát sinh sản lượng, tổng ${fmtInt(totalQty)} items.`;
+}
+
+// ---------- rendering ----------
+function fmtInt(n){ return n.toLocaleString('en-US'); }
+function fmtPct(n){ return n.toFixed(1)+'%'; }
+
+function renderKPIs(){
+  const pick = state.pick, pack = state.pack;
+  const pickEmails = pick ? new Set(pick.employees.map(e=>e.email)) : new Set();
+  const packEmails = pack ? new Set(pack.employees.map(e=>e.email)) : new Set();
+  const overlap = [...pickEmails].filter(e=>packEmails.has(e));
+  const unionCount = new Set([...pickEmails, ...packEmails]).size;
+
+  document.getElementById('kpiTotal').textContent = unionCount || '—';
+  document.getElementById('kpiTotalSub').textContent = `Pick ${pickEmails.size} · Pack ${packEmails.size}`;
+  document.getElementById('kpiOverlap').textContent = overlap.length;
+  document.getElementById('kpiPickGreenSub').textContent = `Sản lượng ≥ ${THRESH.pick.greenAt}`;
+  document.getElementById('kpiPackGreenSub').textContent = `Sản lượng ≥ ${THRESH.pack.greenAt}`;
+
+  if (pick){
+    const rag = computeRagCounts(pick.employees,'pick');
+    const pct = pick.stats.count ? 100*rag.green/pick.stats.count : 0;
+    document.getElementById('kpiPickGreen').textContent = fmtPct(pct);
+    document.getElementById('kpiPickGreenSub').textContent = `${rag.green}/${pick.stats.count} người`;
+  } else {
+    document.getElementById('kpiPickGreen').textContent = '—';
+  }
+  if (pack){
+    const rag = computeRagCounts(pack.employees,'pack');
+    const pct = pack.stats.count ? 100*rag.green/pack.stats.count : 0;
+    document.getElementById('kpiPackGreen').textContent = fmtPct(pct);
+    document.getElementById('kpiPackGreenSub').textContent = `${rag.green}/${pack.stats.count} người`;
+  } else {
+    document.getElementById('kpiPackGreen').textContent = '—';
+  }
+
+  if (pick || pack){
+    const pi = pick ? fmtPct(pick.stats.indirectPct) : '—';
+    const pa = pack ? fmtPct(pack.stats.indirectPct) : '—';
+    document.getElementById('kpiIndirect').textContent = pick ? pi : pa;
+    document.getElementById('kpiIndirectSub').textContent = `Pick ${pi} · Pack ${pa}`;
+  }
+}
+
+// opts cho phép ghi đè task/captain/search — dùng để bảng "🔍 Chi tiết Indirect theo người" lọc độc lập
+// với bảng "📡 KPI Hourly" (mặc định không truyền gì = đọc y hệt như trước, từ ô lọc của KPI Hourly).
+function getFilteredPeopleRows(opts){
+  opts = opts || {};
+  const rows = [];
+  if (state.pick) state.pick.employees.forEach(e=>rows.push({...e, task:'pick', rag: classifyRag('pick', e.efficiency), dat: e.efficiency >= THRESH.pick.greenAt}));
+  if (state.pack) state.pack.employees.forEach(e=>rows.push({...e, task:'pack', rag: classifyRag('pack', e.efficiency), dat: e.efficiency >= THRESH.pack.greenAt}));
+
+  const search = (opts.search!==undefined ? opts.search : document.getElementById('searchBox').value).trim().toLowerCase();
+  const taskF = opts.task!==undefined ? opts.task : document.getElementById('taskFilter').value;
+  const captainF = opts.captain!==undefined ? opts.captain : document.getElementById('captainFilter').value;
+
+  let filtered = rows.filter(r=>{
+    if (search && !r.email.toLowerCase().includes(search)) return false;
+    if (taskF!=='all' && r.task!==taskF) return false;
+    if (captainF!=='all' && (r.captain||'(chưa gán)')!==captainF) return false;
+    return true;
+  });
+
+  filtered.sort((a,b)=>{
+    let av, bv;
+    const hourKeyMatch = /^h(\d{1,2})$/.exec(sortState.key);
+    if (hourKeyMatch){
+      const hh = parseInt(hourKeyMatch[1],10);
+      av = a.chron[hh]||0; bv = b.chron[hh]||0;
+    } else {
+      av=a[sortState.key]; bv=b[sortState.key];
+      if (typeof av==='string'){ av=av.toLowerCase(); bv=bv.toLowerCase(); }
+    }
+    if (av<bv) return sortState.dir==='asc'?-1:1;
+    if (av>bv) return sortState.dir==='asc'?1:-1;
+    return 0;
+  });
+  return filtered;
+}
+
+// ---------- KPI Hourly: ngưỡng màu cho từng ô giờ (theo Target giờ của Task tương ứng) ----------
+// Giả định: xanh = đạt Target giờ trở lên; đỏ = dưới 70% Target; vàng = ở giữa.
+// Có thể chỉnh tỉ lệ 70% này tại đây nếu muốn khác đi.
+function classifyHourCell(task, v){
+  const target = HOUR_TARGET[task] || 1;
+  const redUnder = target * 0.7;
+  if (v >= target) return 'green';
+  if (v >= redUnder) return 'yellow';
+  return 'red';
+}
+function activeHoursFor(rows){
+  const hours = [];
+  for (let h=0; h<24; h++){
+    if (rows.some(r=>r.chron[h] > 0)) hours.push(h);
+  }
+  hours.sort((a,b)=>b-a); // giờ gần nhất trước, giống ảnh mẫu (11h → 00h)
+  return hours;
+}
+// Cột giờ hiển thị cho bảng KPI Hourly, dựa trên bộ lọc khung giờ chung:
+// - "Từ giờ" = "Đến giờ" → soi đúng 1 cột giờ đó, kể cả khi không ai phát sinh sản lượng.
+// - Cả ca (00h–23h, mặc định) → giữ nguyên thứ tự giảm dần như trước (giờ gần nhất trước).
+// - Khung giờ tuỳ chỉnh khác → chỉ hiện những giờ trong khung có phát sinh sản lượng, theo đúng thứ tự đã chọn.
+function hoursForDisplay(rows, from, to){
+  if (from===to) return [from];
+  if (from===0 && to===23) return activeHoursFor(rows);
+  return hoursInRangeList(from, to).filter(h=> rows.some(r=>(r.chron[h]||0) > 0));
+}
+
+function escAttr(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function updateCaptainFilterOptions(selectId){
+  const sel = document.getElementById(selectId || 'captainFilter');
+  const cur = sel.value;
+  const rows = [];
+  if (state.pick) state.pick.employees.forEach(e=>rows.push(e));
+  if (state.pack) state.pack.employees.forEach(e=>rows.push(e));
+  const captains = [...new Set(rows.map(e=>e.captain||'(chưa gán)'))].sort((a,b)=>a.localeCompare(b,'vi'));
+  sel.innerHTML = '<option value="all">Tất cả Captain</option>' + captains.map(c=>`<option value="${escAttr(c)}">${escHtml(c)}</option>`).join('');
+  if (captains.includes(cur)) sel.value = cur;
+}
+
+// ---------- phân trang dùng chung: 📡 KPI Hourly & 🔍 Chi tiết Indirect theo người ----------
+function paginateRows(rows, page, pageSize){
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const clampedPage = Math.min(Math.max(1, page||1), totalPages);
+  const start = (clampedPage - 1) * pageSize;
+  const pageRows = rows.slice(start, start + pageSize);
+  return { pageRows, page: clampedPage, totalPages, total, start, end: start + pageRows.length };
+}
+function renderPaginationControls(containerId, info, scope){
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!info.total || info.total <= ROWS_PER_PAGE){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <div class="pg-info">Dòng ${fmtInt(info.start+1)}–${fmtInt(info.end)} / ${fmtInt(info.total)}</div>
+    <div class="pg-controls">
+      <button type="button" class="pg-btn" data-pg="${scope}:first" ${info.page===1?'disabled':''} title="Trang đầu">« Đầu</button>
+      <button type="button" class="pg-btn" data-pg="${scope}:prev" ${info.page===1?'disabled':''}>‹ Trước</button>
+      <span class="pg-page">Trang <b>${info.page}</b>/${info.totalPages}</span>
+      <button type="button" class="pg-btn" data-pg="${scope}:next" ${info.page===info.totalPages?'disabled':''}>Sau ›</button>
+      <button type="button" class="pg-btn" data-pg="${scope}:last" ${info.page===info.totalPages?'disabled':''} title="Trang cuối">Cuối »</button>
+    </div>`;
+}
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.pg-btn');
+  if (!btn) return;
+  const [scope, action] = btn.dataset.pg.split(':');
+  if (scope==='kpi'){
+    if (action==='first') kpiHourlyPage = 1;
+    else if (action==='prev') kpiHourlyPage = Math.max(1, kpiHourlyPage-1);
+    else if (action==='next') kpiHourlyPage += 1;
+    else if (action==='last') kpiHourlyPage = 999999;
+    renderTable();
+  } else if (scope==='indirect'){
+    if (action==='first') indirectDetailPage = 1;
+    else if (action==='prev') indirectDetailPage = Math.max(1, indirectDetailPage-1);
+    else if (action==='next') indirectDetailPage += 1;
+    else if (action==='last') indirectDetailPage = 999999;
+    renderIndirectDetailTable();
+  }
+});
+
+function updateTargetBadge(filtered){
+  const taskF = document.getElementById('taskFilter').value;
+  const badge = document.getElementById('kpiHourlyTargetBadge');
+  if (taskF==='pick') badge.textContent = `🎯 Target: ${fmtInt(HOUR_TARGET.pick)} items/h`;
+  else if (taskF==='pack') badge.textContent = `🎯 Target: ${fmtInt(HOUR_TARGET.pack)} items/h`;
+  else badge.textContent = `🎯 Target: Pick ${fmtInt(HOUR_TARGET.pick)} · Pack ${fmtInt(HOUR_TARGET.pack)} items/h`;
+}
+
+function renderHourHeaders(hours){
+  const tr = document.getElementById('theadRow');
+  while (tr.children.length > 7) tr.removeChild(tr.lastChild);
+  hours.forEach(h=>{
+    const th = document.createElement('th');
+    th.className = 'num';
+    th.dataset.k = 'h' + h; // cho phép bấm tiêu đề cột giờ để sort theo đúng giờ đó
+    th.textContent = String(h).padStart(2,'0') + 'h';
+    tr.appendChild(th);
+  });
+}
+
+function hourCellHtml(task, v){
+  if (!v) return '<td class="hnum"><span class="dash">—</span></td>';
+  return `<td class="hnum"><span class="badge ${classifyHourCell(task, v)}">${fmtInt(v)}</span></td>`;
+}
+
+function renderTable(){
+  updateCaptainFilterOptions();
+  const filtered = getFilteredPeopleRows();
+  updateTargetBadge(filtered);
+  document.getElementById('tableCount').textContent = `${filtered.length} dòng`;
+
+  const { from, to } = getHourRange();
+  const hours = hoursForDisplay(filtered, from, to);
+
+  renderHourHeaders(hours);
+  const tbody = document.getElementById('tbody');
+  updateSortIndicators();
+  const colspan = 7 + hours.length;
+  if (!filtered.length){
+    tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty">Không có dữ liệu khớp bộ lọc</td></tr>`;
+    applyColumnVisibility();
+    return;
+  }
+
+  // dòng Total tổng hợp
+  const grandTotal = filtered.reduce((s,r)=>s+r.efficiency,0);
+  const hourTotals = hours.map(h=> filtered.reduce((s,r)=>s+(r.chron[h]||0),0));
+  const totalRow = `
+    <tr class="total">
+      <td>—</td><td style="font-weight:700;">Total</td>
+      <td class="col-staffName">Hourly Aggregation</td>
+      <td class="col-stationId">—</td><td class="col-stationName">—</td><td class="col-captain">—</td>
+      <td class="num total-col">${fmtInt(grandTotal)}</td>
+      ${hourTotals.map(v=>`<td class="hnum" style="font-weight:700;">${v?fmtInt(v):'<span class="dash">—</span>'}</td>`).join('')}
+    </tr>`;
+
+  const editAttrs = editMode ? 'contenteditable="true"' : '';
+  const bodyRows = filtered.slice(0,500).map((r,i)=>`
+    <tr>
+      <td class="rowidx">${i+1}</td>
+      <td style="font-family:var(--sans);"><span class="task-tag ${r.task}" style="margin-right:6px;">${r.task.toUpperCase()}</span>${escHtml(r.email)}</td>
+      <td class="col-staffName">${escHtml(r.staffName||r.email)}</td>
+      <td class="editable col-stationId" ${editAttrs} spellcheck="false" data-email="${escAttr(r.email)}" data-field="stationId">${escHtml(r.stationId)}</td>
+      <td class="editable col-stationName" ${editAttrs} spellcheck="false" data-email="${escAttr(r.email)}" data-field="stationName">${escHtml(r.stationName)}</td>
+      <td class="editable col-captain" ${editAttrs} spellcheck="false" data-email="${escAttr(r.email)}" data-field="captain">${escHtml(r.captain)}</td>
+      <td class="num total-col">${fmtInt(r.efficiency)}</td>
+      ${hours.map(h=>hourCellHtml(r.task, r.chron[h])).join('')}
+    </tr>`).join('');
+
+  tbody.innerHTML = totalRow + bodyRows;
+  applyColumnVisibility();
+}
+
+// ---------- 🔍 Chi tiết Indirect theo người ----------
+// Dùng lại đúng danh sách/bộ lọc (email/Task/Captain) và sắp xếp đang áp dụng ở bảng KPI Hourly.
+// Cột giờ lấy TOÀN BỘ khung giờ đang chọn ở bộ lọc chung (kể cả giờ không ai phát sinh sản lượng),
+// vì mục tiêu của bảng này chính là soi ra những khung giờ Indirect (trống/=0) của từng người.
+function renderIndirectDetailTable(){
+  const filtered = getFilteredPeopleRows();
+  const { from, to } = getHourRange();
+  const hours = hoursInRangeList(from, to);
+  const el = document.getElementById('tblIndirectDetail');
+  const note = document.getElementById('indirectDetailNote');
+  if (note){
+    const rangeLabel = (from===0 && to===23) ? 'cả ca (00h–23h)' : (from===to ? `đúng ${String(from).padStart(2,'0')}h` : `${String(from).padStart(2,'0')}h–${String(to).padStart(2,'0')}h`);
+    note.innerHTML = `${hours.length} giờ trong khung ${rangeLabel} — ô trống/= 0 được đánh dấu <b style="color:var(--red);">Indirect</b>`;
+  }
+  if (!filtered.length || !hours.length){
+    el.innerHTML = `<tr><th>#</th><th>Email</th></tr><tr><td colspan="2" style="color:var(--dim);">Không có dữ liệu khớp bộ lọc</td></tr>`;
+    return;
+  }
+
+  const header = `
+    <tr>
+      <th>#</th><th data-k="email">Email</th><th>Staff Name</th>
+      ${hours.map(h=>`<th class="num">${String(h).padStart(2,'0')}h</th>`).join('')}
+      <th class="num">Số giờ Indirect</th>
+    </tr>`;
+
+  const rows = filtered.slice(0,500).map((r,i)=>{
+    let indirectCount = 0;
+    const cells = hours.map(h=>{
+      const v = r.chron[h] || 0;
+      if (v>0) return `<td class="hnum">${fmtInt(v)}</td>`;
+      indirectCount++;
+      return `<td class="hnum"><span class="indirect-cell">Indirect</span></td>`;
+    }).join('');
+    return `
+      <tr>
+        <td class="rowidx">${i+1}</td>
+        <td style="font-family:var(--sans);"><span class="task-tag ${r.task}" style="margin-right:6px;">${r.task.toUpperCase()}</span>${escHtml(r.email)}</td>
+        <td>${escHtml(r.staffName||r.email)}</td>
+        ${cells}
+        <td class="num" style="font-weight:700;color:${indirectCount>0?'var(--red)':'var(--text)'};">${indirectCount}/${hours.length}</td>
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = header + rows;
+}
+
+function setSort(key, dir){
+  sortState.key = key; sortState.dir = dir;
+  renderTable();
+}
+function updateSortIndicators(){
+  document.querySelectorAll('thead th[data-k]').forEach(th=>{
+    if (!th.dataset.label) th.dataset.label = th.textContent.trim();
+    th.innerHTML = th.dataset.label + (th.dataset.k===sortState.key ? `<span class="sort-arrow">${sortState.dir==='asc'?'▲':'▼'}</span>` : '');
+  });
+  document.getElementById('sortHighFirst').classList.toggle('active', sortState.key==='efficiency' && sortState.dir==='desc');
+  document.getElementById('sortLowFirst').classList.toggle('active', sortState.key==='efficiency' && sortState.dir==='asc');
+}
+
+// ---------- report-style summary (ảnh 2/3/4) ----------
+function buildSummary(){
+  const pick = state.pick, pack = state.pack;
+  const pickEmails = pick ? pick.employees.map(e=>e.email) : [];
+  const packEmails = pack ? pack.employees.map(e=>e.email) : [];
+  const packSet = new Set(packEmails);
+  const overlap = pickEmails.filter(e=>packSet.has(e));
+  const rawTotal = pickEmails.length + packEmails.length;
+  const uniqueActual = new Set([...pickEmails, ...packEmails]).size;
+
+  const target = {};
+  ['pick','pack'].forEach(task=>{
+    const d = state[task];
+    const thresh = THRESH[task].greenAt;
+    if (!d){ target[task]=null; return; }
+    const hit = d.employees.filter(e=>e.efficiency>=thresh).length;
+    target[task] = { count:d.employees.length, hit, miss:d.employees.length-hit, thresh };
+  });
+
+  const di = {};
+  ['pick','pack'].forEach(task=>{
+    const d = state[task];
+    if (!d){ di[task]=null; return; }
+    const s = d.stats;
+    di[task] = { count:s.count, direct:s.directSlots, indirect:s.totalSlots-s.directSlots, total:s.totalSlots, pct:s.indirectPct };
+  });
+
+  return { pickCount:pickEmails.length, packCount:packEmails.length, rawTotal, overlap, uniqueActual, target, di };
+}
+
+function renderSummaryTables(){
+  const s = buildSummary();
+
+  document.getElementById('tblHeadcount').innerHTML = `
+    <tr><th></th><th class="num">Số người</th></tr>
+    <tr><td><span class="task-pill"><i style="background:var(--pick)"></i>Pick</span></td><td class="num">${s.pickCount}</td></tr>
+    <tr><td><span class="task-pill"><i style="background:var(--pack)"></i>Pack</span></td><td class="num">${s.packCount}</td></tr>
+    <tr class="total"><td>Tổng (raw)</td><td class="num">${s.rawTotal}</td></tr>
+    <tr class="sub"><td>Trùng cả 2 task</td><td class="num">${s.overlap.length}</td></tr>
+    <tr class="grand-total"><td>Unique thực tế</td><td class="num">${s.uniqueActual}</td></tr>`;
+  document.getElementById('overlapNote').innerHTML = s.overlap.length
+    ? `${s.overlap.length} người xuất hiện ở cả Pick lẫn Pack (${s.overlap.slice(0,6).map(e=>`<code>${e}</code>`).join(', ')}${s.overlap.length>6?', …':''}) — đáng kiểm tra xem là làm 2 ca khác ngày, hay bị gán nhầm task.`
+    : 'Không có ai trùng cả 2 task.';
+
+  const trow = (label, t) => t ? `
+    <tr><td>${label} (${t.count} người)</td><td class="num"></td><td class="num"></td></tr>
+    <tr class="sub"><td>&nbsp;&nbsp;Đạt target (≥${t.thresh})</td><td class="num">${t.hit}</td><td class="num">${t.count?(100*t.hit/t.count).toFixed(1):'0.0'}%</td></tr>
+    <tr class="sub"><td>&nbsp;&nbsp;Không đạt</td><td class="num">${t.miss}</td><td class="num">${t.count?(100*t.miss/t.count).toFixed(1):'0.0'}%</td></tr>` : '';
+  const tCount = (s.target.pick?s.target.pick.count:0) + (s.target.pack?s.target.pack.count:0);
+  const tHit = (s.target.pick?s.target.pick.hit:0) + (s.target.pack?s.target.pack.hit:0);
+  document.getElementById('tblTarget').innerHTML = `
+    <tr><th></th><th class="num">Số người</th><th class="num">%</th></tr>
+    ${trow('Picking', s.target.pick)}
+    ${trow('Packing', s.target.pack)}
+    ${(!s.target.pick && !s.target.pack) ? '<tr><td colspan="3" style="color:var(--dim);">Chưa có dữ liệu</td></tr>' :
+      `<tr class="grand-total"><td>Tổng — đạt target</td><td class="num">${tHit}/${tCount}</td><td class="num">${tCount?(100*tHit/tCount).toFixed(1):'0.0'}%</td></tr>`}`;
+
+  const drow = (label, d) => d ? `
+    <tr><td>${label} (${d.count} người × 24 giờ)</td><td class="num">${fmtInt(d.direct)}</td><td class="num">${fmtInt(d.indirect)}</td><td class="num">${fmtInt(d.total)}</td><td class="num">${d.pct.toFixed(1)}%</td></tr>` : '';
+  const diDirect = (s.di.pick?s.di.pick.direct:0) + (s.di.pack?s.di.pack.direct:0);
+  const diIndirect = (s.di.pick?s.di.pick.indirect:0) + (s.di.pack?s.di.pack.indirect:0);
+  const diTotal = (s.di.pick?s.di.pick.total:0) + (s.di.pack?s.di.pack.total:0);
+  document.getElementById('tblDirectIndirect').innerHTML = `
+    <tr><th></th><th class="num">Direct</th><th class="num">Indirect</th><th class="num">Tổng lượt</th><th class="num">% Indirect</th></tr>
+    ${drow('Pick', s.di.pick)}
+    ${drow('Pack', s.di.pack)}
+    ${(!s.di.pick && !s.di.pack) ? '<tr><td colspan="5" style="color:var(--dim);">Chưa có dữ liệu</td></tr>' :
+      `<tr class="grand-total"><td>Tổng cộng</td><td class="num">${fmtInt(diDirect)}</td><td class="num">${fmtInt(diIndirect)}</td><td class="num">${fmtInt(diTotal)}</td><td class="num">${diTotal?(100*diIndirect/diTotal).toFixed(1):'0.0'}%</td></tr>`}`;
+
+  return s;
+}
+
+// ---------- tổng hợp theo Captain ----------
+function buildCaptainSummary(){
+  const rows = [];
+  if (state.pick) state.pick.employees.forEach(e=>rows.push({...e, task:'pick'}));
+  if (state.pack) state.pack.employees.forEach(e=>rows.push({...e, task:'pack'}));
+
+  const map = new Map(); // captain -> agg
+  rows.forEach(r=>{
+    const cap = r.captain && r.captain.trim() ? r.captain.trim() : '(chưa gán)';
+    if (!map.has(cap)) map.set(cap, { captain:cap, pickEmails:new Set(), packEmails:new Set(), pickHit:0, packHit:0 });
+    const m = map.get(cap);
+    if (r.task==='pick'){ m.pickEmails.add(r.email); if (r.efficiency>=THRESH.pick.greenAt) m.pickHit++; }
+    else { m.packEmails.add(r.email); if (r.efficiency>=THRESH.pack.greenAt) m.packHit++; }
+  });
+
+  const list = [...map.values()].map(m=>{
+    const uniqueCount = new Set([...m.pickEmails, ...m.packEmails]).size;
+    const totalCount = m.pickEmails.size + m.packEmails.size;
+    const totalHit = m.pickHit + m.packHit;
+    return {
+      captain: m.captain,
+      pickCount: m.pickEmails.size, packCount: m.packEmails.size, uniqueCount,
+      pickHit: m.pickHit, packHit: m.packHit, totalHit, totalCount,
+      hitPct: totalCount ? 100*totalHit/totalCount : 0
+    };
+  });
+  list.sort((a,b)=> b.uniqueCount - a.uniqueCount || a.captain.localeCompare(b.captain,'vi'));
+  return list;
+}
+function renderCaptainTable(){
+  const list = buildCaptainSummary();
+  const el = document.getElementById('tblCaptain');
+  if (!list.length){
+    el.innerHTML = `<tr><th>Captain</th></tr><tr><td style="color:var(--dim);">Chưa có dữ liệu — cần cột "Captain" trong file Packing, hoặc gán thủ công ở bảng "Chi tiết theo người".</td></tr>`;
+    return;
+  }
+  const gCount = list.reduce((s,r)=>s+r.uniqueCount,0);
+  const gPick = list.reduce((s,r)=>s+r.pickCount,0);
+  const gPack = list.reduce((s,r)=>s+r.packCount,0);
+  const gHit = list.reduce((s,r)=>s+r.totalHit,0);
+  const gTotal = list.reduce((s,r)=>s+r.totalCount,0);
+  el.innerHTML = `
+    <tr><th>Captain</th><th class="num">Người (Pick)</th><th class="num">Người (Pack)</th><th class="num">Tổng unique</th><th class="num">Đạt target</th><th class="num">% đạt target</th></tr>
+    ${list.map(r=>`
+      <tr>
+        <td><span class="captain-link" data-captain="${escAttr(r.captain)}" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px;color:var(--pick);" title="Lọc bảng Chi tiết theo người theo Captain này">${escHtml(r.captain)}</span></td>
+        <td class="num">${fmtInt(r.pickCount)}</td>
+        <td class="num">${fmtInt(r.packCount)}</td>
+        <td class="num" style="font-weight:700;">${fmtInt(r.uniqueCount)}</td>
+        <td class="num">${fmtInt(r.totalHit)}/${fmtInt(r.totalCount)}</td>
+        <td class="num">${r.totalCount ? r.hitPct.toFixed(1) : '0.0'}%</td>
+      </tr>`).join('')}
+    <tr class="grand-total">
+      <td>Tổng — ${list.length} Captain</td>
+      <td class="num">${fmtInt(gPick)}</td>
+      <td class="num">${fmtInt(gPack)}</td>
+      <td class="num">${fmtInt(gCount)}</td>
+      <td class="num">${fmtInt(gHit)}/${fmtInt(gTotal)}</td>
+      <td class="num">${gTotal ? (100*gHit/gTotal).toFixed(1) : '0.0'}%</td>
+    </tr>`;
+}
+document.getElementById('tblCaptain').addEventListener('click', (ev)=>{
+  const link = ev.target.closest('.captain-link');
+  if (!link) return;
+  document.getElementById('captainFilter').value = link.dataset.captain;
+  // captainFilter options được build lại mỗi renderTable(); đảm bảo giá trị được set đúng sau khi options có mặt
+  updateCaptainFilterOptions();
+  document.getElementById('captainFilter').value = link.dataset.captain;
+  renderTable();
+  document.getElementById('kpiHourlyTable').scrollIntoView({behavior:'smooth', block:'center'});
+});
+
+// ---------- 4b. bảng chi tiết theo khung giờ ----------
+function computeHourlyDetail(task){
+  const d = state[task];
+  const target = HOUR_TARGET[task];
+  const rows = [];
+  for (let h=0; h<24; h++){
+    if (!d){ rows.push({h, direct:0, indirect:0, hit:0, miss:0, count:0}); continue; }
+    let direct=0, hit=0;
+    d.employees.forEach(e=>{
+      const v = e.chron[h];
+      if (v>0) direct++;
+      if (v>=target) hit++;
+    });
+    rows.push({ h, direct, indirect:d.employees.length-direct, hit, miss:d.employees.length-hit, count:d.employees.length });
+  }
+  return rows;
+}
+function renderHourlyDetailTables(){
+  const { from, to } = getHourRange();
+  const rangeLabel = (from===0 && to===23) ? '' : ` (${String(from).padStart(2,'0')}h–${String(to).padStart(2,'0')}h)`;
+  const render = (elId, task) => {
+    const allRows = computeHourlyDetail(task);
+    const rows = allRows.filter(r=>hourInRange(r.h, from, to));
+    const has = !!state[task];
+    const t = rows.reduce((a,r)=>({direct:a.direct+r.direct, indirect:a.indirect+r.indirect, hit:a.hit+r.hit, miss:a.miss+r.miss}), {direct:0,indirect:0,hit:0,miss:0});
+    document.getElementById(elId).innerHTML = `
+      <tr><th>Giờ</th><th class="num">Direct</th><th class="num">Indirect</th><th class="num">Đạt target (≥${HOUR_TARGET[task]})</th><th class="num">Dưới target</th></tr>
+      ${has ? (rows.length ? rows.map(r=>`
+        <tr><td>${String(r.h).padStart(2,'0')}:00</td><td class="num">${r.direct}</td><td class="num">${r.indirect}</td><td class="num">${r.hit}</td><td class="num">${r.miss}</td></tr>`).join('') : `<tr><td colspan="5" style="color:var(--dim);">Không có giờ nào trong khung đã chọn</td></tr>`)
+        : `<tr><td colspan="5" style="color:var(--dim);">Chưa có dữ liệu</td></tr>`}
+      ${has && rows.length ? `<tr class="grand-total"><td>Tổng${rangeLabel} — ${rows.length} giờ</td><td class="num">${fmtInt(t.direct)}</td><td class="num">${fmtInt(t.indirect)}</td><td class="num">${fmtInt(t.hit)}</td><td class="num">${fmtInt(t.miss)}</td></tr>` : ''}`;
+  };
+  render('tblHourPick','pick');
+  render('tblHourPack','pack');
+}
+
+// ---------- exports (Excel) ----------
+function todayStamp(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+function downloadTable(tableId, nameBase){
+  const table = document.getElementById(tableId);
+  if (!table || !table.rows.length){ alert('Chưa có dữ liệu để tải xuống.'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.table_to_sheet(table);
+  XLSX.utils.book_append_sheet(wb, ws, nameBase.slice(0,31));
+  XLSX.writeFile(wb, `${nameBase}_${todayStamp()}.xlsx`);
+}
+function downloadHourly(){
+  if (!state.pick && !state.pack){ alert('Chưa có dữ liệu để tải xuống.'); return; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('tblHourPick')), 'Chi tiet gio - Pick');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('tblHourPack')), 'Chi tiet gio - Pack');
+  XLSX.writeFile(wb, `chi-tiet-theo-gio_${todayStamp()}.xlsx`);
+}
+function buildKpiHourlyAoa(filtered){
+  const { from, to } = getHourRange();
+  const hours = hoursForDisplay(filtered, from, to);
+  const header = ['#','Email','Task','Staff Name','Station ID','Station Name','Captain','TOTAL', ...hours.map(h=>String(h).padStart(2,'0')+'h')];
+  const aoa = [header];
+  const grandTotal = filtered.reduce((s,r)=>s+r.efficiency,0);
+  const hourTotals = hours.map(h=> filtered.reduce((s,r)=>s+(r.chron[h]||0),0));
+  aoa.push(['—','Total','','Hourly Aggregation','','','', grandTotal, ...hourTotals]);
+  filtered.forEach((r,i)=> aoa.push([i+1, r.email, r.task.toUpperCase(), r.staffName||r.email, r.stationId||'', r.stationName||'', r.captain||'', r.efficiency, ...hours.map(h=>r.chron[h]||0)]));
+  return aoa;
+}
+function downloadPeople(){
+  const filtered = getFilteredPeopleRows();
+  if (!filtered.length){ alert('Không có dữ liệu khớp bộ lọc để tải xuống.'); return; }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildKpiHourlyAoa(filtered)), 'KPI Hourly');
+  XLSX.writeFile(wb, `kpi-hourly_${todayStamp()}.xlsx`);
+}
+function downloadFullReport(){
+  if (!state.pick && !state.pack){ alert('Chưa có dữ liệu để xuất báo cáo.'); return; }
+  const wb = XLSX.utils.book_new();
+  const add = (id, name) => { const el = document.getElementById(id); if (el && el.rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(el), name); };
+  add('tblHeadcount', 'Tong nhan su');
+  add('tblTarget', 'Dat target');
+  add('tblDirectIndirect', 'Direct-Indirect');
+  add('tblCaptain', 'Tong hop theo Captain');
+  add('tblHourPick', 'Chi tiet gio - Pick');
+  add('tblHourPack', 'Chi tiet gio - Pack');
+  const filtered = getFilteredPeopleRows();
+  if (filtered.length){
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(buildKpiHourlyAoa(filtered)), 'KPI Hourly');
+  }
+  add('tblIndirectDetail', 'Chi tiet Indirect theo nguoi');
+  XLSX.writeFile(wb, `bao-cao-nang-suat_${todayStamp()}.xlsx`);
+}
+document.getElementById('exportAllBtn').addEventListener('click', downloadFullReport);
+
+// ---------- theme ----------
+async function loadTheme(){
+  let theme = 'dark';
+  try {
+    const res = await storage.get('ui_theme', false);
+    if (res && res.value) theme = res.value;
+  } catch(e){}
+  applyTheme(theme);
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeLabel').textContent = theme==='light' ? 'Light' : 'Dark';
+  document.querySelector('#themeToggle').firstChild.textContent = theme==='light' ? '☀️ ' : '🌙 ';
+}
+document.getElementById('themeToggle').addEventListener('click', async ()=>{
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current==='light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { await storage.set('ui_theme', next, false); } catch(e){}
+});
+
+// ---------- config (rules + Drive webhook) ----------
+let config = { driveUrl: '', autoSyncDrive: true, historyRetentionDays: 0, thresh: JSON.parse(JSON.stringify(THRESH)), hourTarget: {...HOUR_TARGET} };
+async function loadConfig(){
+  try {
+    const res = await storage.get('config', false);
+    if (res && res.value){
+      const saved = JSON.parse(res.value);
+      config = { ...config, ...saved, thresh:{...config.thresh, ...(saved.thresh||{})}, hourTarget:{...config.hourTarget, ...(saved.hourTarget||{})} };
+    }
+  } catch(e){ /* none saved yet */ }
+  Object.assign(THRESH.pick, config.thresh.pick);
+  Object.assign(THRESH.pack, config.thresh.pack);
+  Object.assign(HOUR_TARGET, config.hourTarget);
+
+  document.getElementById('driveUrl').value = config.driveUrl || '';
+  document.getElementById('autoSyncDrive').checked = config.autoSyncDrive !== false;
+  document.getElementById('historyRetentionDays').value = config.historyRetentionDays || 0;
+  document.getElementById('pickRed').value = THRESH.pick.redUnder;
+  document.getElementById('pickGreen').value = THRESH.pick.greenAt;
+  document.getElementById('packRed').value = THRESH.pack.redUnder;
+  document.getElementById('packGreen').value = THRESH.pack.greenAt;
+  document.getElementById('pickHourTarget').value = HOUR_TARGET.pick;
+  document.getElementById('packHourTarget').value = HOUR_TARGET.pack;
+}
+async function saveConfig(){
+  THRESH.pick.redUnder = Number(document.getElementById('pickRed').value)||170;
+  THRESH.pick.greenAt = Number(document.getElementById('pickGreen').value)||200;
+  THRESH.pack.redUnder = Number(document.getElementById('packRed').value)||16;
+  THRESH.pack.greenAt = Number(document.getElementById('packGreen').value)||25;
+  HOUR_TARGET.pick = Number(document.getElementById('pickHourTarget').value)||THRESH.pick.greenAt;
+  HOUR_TARGET.pack = Number(document.getElementById('packHourTarget').value)||THRESH.pack.greenAt;
+  config.driveUrl = document.getElementById('driveUrl').value.trim();
+  config.autoSyncDrive = document.getElementById('autoSyncDrive').checked;
+  config.historyRetentionDays = Math.max(0, Number(document.getElementById('historyRetentionDays').value)||0);
+  config.thresh = JSON.parse(JSON.stringify(THRESH));
+  config.hourTarget = {...HOUR_TARGET};
+  try { await storage.set('config', JSON.stringify(config), false); } catch(e){}
+  renderAll();
+  await cleanupOldHistory();
+  await renderHistoryPanel();
+  const el = document.getElementById('driveStatus');
+  el.textContent = 'Đã lưu ✓'; el.className = 'drive-status ok';
+  setTimeout(()=>{ el.textContent=''; }, 2500);
+  if (config.driveUrl && config.autoSyncDrive) loadFromDriveLatest(true);
+}
+document.getElementById('configToggle').addEventListener('click', ()=>{
+  document.getElementById('configPanel').classList.toggle('open');
+});
+document.getElementById('saveConfig').addEventListener('click', saveConfig);
+
+// ---------- đồng bộ dữ liệu chung (bản mới nhất) từ Google Drive ----------
+// Cho phép nhiều người mở cùng 1 link: ai tải file lên (pushToDrive) → người khác mở link/bấm đồng bộ sẽ thấy đúng bản đó.
+async function loadFromDriveLatest(silent){
+  if (!config.driveUrl) return;
+  const btn = document.getElementById('syncDriveBtn');
+  const el = document.getElementById('syncDriveStatus');
+  if (btn) btn.style.opacity = '0.6';
+  try {
+    const res = await fetch(config.driveUrl + '?action=latest', { method:'GET' });
+    const json = await res.json();
+    if (json.status !== 'ok' || !json.data){ throw new Error(json.message || 'Không đọc được dữ liệu'); }
+    let changed = false;
+    ['pick','pack'].forEach(task=>{
+      const d = json.data[task];
+      if (d && d.employees && d.employees.length){
+        rawState[task] = { fileName: d.fileName, fileNames: d.fileNames || (d.fileName ? [d.fileName] : []), employees: d.employees };
+        document.getElementById(task+'FileName').textContent = (d.fileName || '') + ' (đồng bộ từ Drive)';
+        changed = true;
+      }
+    });
+    if (changed){
+      document.getElementById('histBanner').style.display = 'none';
+      renderAll();
+      await saveLatest();
+    }
+    if (el){ el.textContent = changed ? 'Đã đồng bộ ✓' : 'Drive chưa có dữ liệu chung'; el.className = 'drive-status ok'; }
+  } catch(err){
+    if (el){ el.textContent = 'Lỗi đồng bộ Drive'; el.className = 'drive-status err'; }
+  }
+  if (btn) btn.style.opacity = '1';
+  if (el) setTimeout(()=>{ el.textContent=''; }, 4000);
+}
+document.getElementById('syncDriveBtn').addEventListener('click', ()=> loadFromDriveLatest(false));
+
+
+async function pushToDrive(summary, task, fileName, fileNames, employees){
+  if (!config.driveUrl) return;
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  // task/fileName/employees = raw data for the file just uploaded (not overwritten — each upload becomes its own file lịch sử trên Drive).
+  // Apps Script (doPost) đồng thời ghi đè file latest_<task>.json — dùng để mọi người mở link đều thấy chung 1 bản mới nhất.
+  const payload = { dateStr, timeStr, generatedAt: now.toISOString(), task, fileName, fileNames, employees, summary };
+  const el = document.getElementById('driveStatus');
+  try {
+    await fetch(config.driveUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    el.textContent = 'Đã gửi lên Drive ✓ (mọi người mở link sẽ thấy bản này)'; el.className='drive-status ok';
+  } catch(err){
+    el.textContent = 'Lỗi gửi Drive'; el.className='drive-status err';
+  }
+  setTimeout(()=>{ el.textContent=''; }, 4000);
+}
+
+function renderAll(){
+  applyGlobalHourFilter(); // tính lại `state` từ `rawState` theo đúng khung giờ đang chọn
+  renderKPIs(); renderTable();
+  const summary = renderSummaryTables();
+  renderCaptainTable();
+  renderHourlyDetailTables();
+  renderIndirectDetailTable();
+  updateGlobalHourBanner();
+  return summary;
+}
+
+// ---------- persistence of latest dataset ----------
+async function saveLatest(){
+  try {
+    const payload = {
+      pick: rawState.pick ? { fileName: rawState.pick.fileName, employees: rawState.pick.employees } : null,
+      pack: rawState.pack ? { fileName: rawState.pack.fileName, employees: rawState.pack.employees } : null
+    };
+    await storage.set('latest_snapshot', JSON.stringify(payload), false);
+  } catch(e){ console.error('save latest failed', e); }
+}
+async function loadLatest(){
+  try {
+    const res = await storage.get('latest_snapshot', false);
+    if (!res || !res.value) return;
+    const payload = JSON.parse(res.value);
+    if (payload.pick){ rawState.pick = { fileName: payload.pick.fileName, employees: payload.pick.employees }; document.getElementById('pickFileName').textContent = payload.pick.fileName + ' (đã lưu)'; }
+    if (payload.pack){ rawState.pack = { fileName: payload.pack.fileName, employees: payload.pack.employees }; document.getElementById('packFileName').textContent = payload.pack.fileName + ' (đã lưu)'; }
+  } catch(e){ /* no saved data yet */ }
+}
+
+// ---------- upload history (raw data, one entry per upload, never overwritten, no time limit) ----------
+async function loadHistoryIndex(){
+  try {
+    const res = await storage.get('hist_index', false);
+    return (res && res.value) ? JSON.parse(res.value) : [];
+  } catch(e){ return []; }
+}
+// Tự động xoá các bản ghi lịch sử (local, trong trình duyệt) cũ hơn config.historyRetentionDays ngày.
+// 0/không đặt = tắt, giữ vô hạn. Không đụng tới dữ liệu đã lưu trên Google Drive.
+async function cleanupOldHistory(){
+  const days = Number(config.historyRetentionDays) || 0;
+  if (!days) return { removed: 0 };
+  try {
+    const idx = await loadHistoryIndex();
+    const cutoff = Date.now() - days*24*60*60*1000;
+    const keep = [], remove = [];
+    idx.forEach(e => (e.ts < cutoff ? remove : keep).push(e));
+    if (!remove.length) return { removed: 0 };
+    for (const e of remove){ try { await storage.delete(`hist:${e.id}`, false); } catch(err){} }
+    await storage.set('hist_index', JSON.stringify(keep), false);
+    return { removed: remove.length };
+  } catch(e){ return { removed: 0 }; }
+}
+async function saveHistoryEntry(task, fileName, employees){
+  try {
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const dateKey = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+    const timeLabel = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const id = `${task}_${now.getTime()}`;
+    const meta = { id, ts: now.getTime(), dateKey, timeLabel, task, fileName, count: employees.length };
+    await storage.set(`hist:${id}`, JSON.stringify({ ...meta, employees }), false);
+    const idx = await loadHistoryIndex();
+    idx.push(meta);
+    await storage.set('hist_index', JSON.stringify(idx), false);
+  } catch(e){
+    console.error('save history entry failed', e);
+    const el = document.getElementById('histCount');
+    if (el) el.textContent = '⚠ Lỗi lưu lịch sử (có thể bộ nhớ trình duyệt đã đầy)';
+  }
+}
+async function renderHistoryPanel(){
+  const idx = (await loadHistoryIndex()).sort((a,b)=> b.ts - a.ts);
+  document.getElementById('histCount').textContent = `${idx.length} lần tải`;
+
+  const dateSel = document.getElementById('histDateFilter');
+  const dates = [...new Set(idx.map(e=>e.dateKey))].sort().reverse();
+  const curDateVal = dateSel.value;
+  dateSel.innerHTML = '<option value="all">Tất cả ngày</option>' + dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  if (dates.includes(curDateVal)) dateSel.value = curDateVal;
+
+  const taskF = document.getElementById('histTaskFilter').value;
+  const dateF = dateSel.value;
+  const filtered = idx.filter(e => (taskF==='all'||e.task===taskF) && (dateF==='all'||e.dateKey===dateF));
+
+  const tbl = document.getElementById('tblHistory');
+  if (!filtered.length){
+    tbl.innerHTML = `<tr><td style="color:var(--dim);padding:10px 0;">${idx.length? 'Không có lần tải nào khớp bộ lọc.' : 'Chưa có lịch sử — tải file Picking/Packing ở trên để bắt đầu ghi lại.'}</td></tr>`;
+    return;
+  }
+  tbl.innerHTML = `
+    <tr><th>Thời gian</th><th>Task</th><th>Tên file</th><th class="num">Số dòng</th><th></th></tr>
+    ${filtered.map(e=>`
+      <tr>
+        <td>${e.dateKey} ${e.timeLabel}</td>
+        <td><span class="task-pill"><i style="background:var(--${e.task})"></i>${e.task.toUpperCase()}</span></td>
+        <td style="font-family:var(--sans);">${e.fileName}</td>
+        <td class="num">${e.count}</td>
+        <td style="white-space:nowrap;">
+          <button class="dl-btn hist-view-btn" data-id="${e.id}" title="Nạp lại data thô này vào dashboard để xem">👁 Xem lại</button>
+          <button class="dl-btn hist-dl-btn" data-id="${e.id}" title="Xuất data thô của lần tải này ra Excel">⬇ Tải raw</button>
+        </td>
+      </tr>`).join('')}`;
+}
+async function restoreHistoryEntry(id){
+  try {
+    const res = await storage.get(`hist:${id}`, false);
+    if (!res || !res.value){ alert('Không tìm thấy dữ liệu lịch sử này (có thể đã bị xoá).'); return; }
+    const entry = JSON.parse(res.value);
+    rawState[entry.task] = { fileName: entry.fileName, employees: entry.employees };
+    document.getElementById(entry.task+'FileName').textContent = `${entry.fileName} — xem lại lúc ${entry.timeLabel} ngày ${entry.dateKey}`;
+    renderAll();
+    document.getElementById('histBannerText').textContent = `⚠ Đang xem data ${entry.task.toUpperCase()} lưu lúc ${entry.timeLabel} ngày ${entry.dateKey} (không phải dữ liệu mới nhất, và sẽ không tự lưu đè lên bản mới nhất).`;
+    document.getElementById('histBanner').style.display = 'flex';
+    window.scrollTo({top:0, behavior:'smooth'});
+  } catch(e){ alert('Lỗi khi tải lại dữ liệu lịch sử.'); }
+}
+async function downloadHistoryEntry(id){
+  try {
+    const res = await storage.get(`hist:${id}`, false);
+    if (!res || !res.value){ alert('Không tìm thấy dữ liệu lịch sử này.'); return; }
+    const entry = JSON.parse(res.value);
+    const aoa = [['Email','Staff Name','Station ID','Station Name','Captain','San luong','Gio hoat dong', ...Array.from({length:24},(_,h)=>`${String(h).padStart(2,'0')}:00`)]];
+    entry.employees.forEach(e=> aoa.push([e.email, e.staffName||'', e.stationId||'', e.stationName||'', e.captain||'', e.accumulated, e.activeHours, ...e.chron]));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), entry.task.toUpperCase().slice(0,31));
+    XLSX.writeFile(wb, `raw_${entry.task}_${entry.dateKey}_${entry.timeLabel.replace(/:/g,'-')}.xlsx`);
+  } catch(e){ alert('Lỗi khi tải file lịch sử.'); }
+}
+document.getElementById('tblHistory').addEventListener('click', (ev)=>{
+  const viewBtn = ev.target.closest('.hist-view-btn');
+  const dlBtn = ev.target.closest('.hist-dl-btn');
+  if (viewBtn) restoreHistoryEntry(viewBtn.dataset.id);
+  if (dlBtn) downloadHistoryEntry(dlBtn.dataset.id);
+});
+document.getElementById('histTaskFilter').addEventListener('change', renderHistoryPanel);
+document.getElementById('histDateFilter').addEventListener('change', renderHistoryPanel);
+document.getElementById('clearAllHistory').addEventListener('click', async ()=>{
+  if (!confirm('Xoá TOÀN BỘ lịch sử tải lên đã lưu trong trình duyệt này? Không thể hoàn tác. (Dữ liệu trên Google Drive, nếu có, sẽ không bị ảnh hưởng.)')) return;
+  const idx = await loadHistoryIndex();
+  for (const e of idx){ try { await storage.delete(`hist:${e.id}`, false); } catch(err){} }
+  try { await storage.delete('hist_index', false); } catch(err){}
+  await renderHistoryPanel();
+});
+document.getElementById('histBannerBack').addEventListener('click', async ()=>{
+  document.getElementById('histBanner').style.display = 'none';
+  rawState.pick = null; rawState.pack = null;
+  document.getElementById('pickFileName').textContent = 'Chưa có file';
+  document.getElementById('packFileName').textContent = 'Chưa có file';
+  await loadLatest();
+  renderAll();
+});
+
+// ---------- Drive history viewer (xem lại lịch sử trên Google Drive ngay trong dashboard) ----------
+let driveHistoryCache = []; // danh sách metadata lần tải gần nhất từ Drive (không kèm employees)
+const driveContentCache = new Map(); // id -> nội dung JSON đầy đủ đã fetch (để Xem lại/Tải raw không phải gọi lại)
+
+function setDriveHistStatus(msg, cls){
+  const el = document.getElementById('driveHistStatus');
+  el.textContent = msg;
+  el.style.color = cls==='err' ? 'var(--red)' : cls==='ok' ? 'var(--green)' : '';
+}
+
+async function fetchDriveHistoryList(){
+  if (!config.driveUrl){
+    setDriveHistStatus('Chưa cấu hình "Apps Script Web App URL" — vào ⚙ Cấu hình để dán URL trước.', 'err');
+    return;
+  }
+  setDriveHistStatus('Đang tải danh sách từ Drive...', '');
+  document.getElementById('refreshDriveHistory').disabled = true;
+  try {
+    const res = await fetch(config.driveUrl + '?action=list', { method:'GET' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'Phản hồi không hợp lệ');
+    driveHistoryCache = (data.files || []).sort((a,b)=> (b.dateStr+b.timeStr).localeCompare(a.dateStr+a.timeStr));
+    setDriveHistStatus(`Đã tải ${driveHistoryCache.length} file từ Drive lúc ${new Date().toLocaleTimeString('vi-VN',{hour12:false})}.`, 'ok');
+    renderDriveHistoryPanel();
+  } catch(err){
+    setDriveHistStatus('Không tải được danh sách từ Drive. Kiểm tra lại: URL đã đúng · script đã có hàm doGet và đã Deploy lại (New version) · quyền truy cập "Anyone". Chi tiết lỗi: ' + err.message, 'err');
+  } finally {
+    document.getElementById('refreshDriveHistory').disabled = false;
+  }
+}
+
+function renderDriveHistoryPanel(){
+  document.getElementById('driveHistCount').textContent = `${driveHistoryCache.length} file trên Drive`;
+
+  const dateSel = document.getElementById('driveHistDateFilter');
+  const dates = [...new Set(driveHistoryCache.map(e=>e.dateStr))].sort().reverse();
+  const curDateVal = dateSel.value;
+  dateSel.innerHTML = '<option value="all">Tất cả ngày</option>' + dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  if (dates.includes(curDateVal)) dateSel.value = curDateVal;
+
+  const taskF = document.getElementById('driveHistTaskFilter').value;
+  const dateF = dateSel.value;
+  const filtered = driveHistoryCache.filter(e => (taskF==='all'||e.task===taskF) && (dateF==='all'||e.dateStr===dateF));
+
+  const tbl = document.getElementById('tblDriveHistory');
+  if (!filtered.length){
+    tbl.innerHTML = `<tr><td style="color:var(--dim);padding:10px 0;">${driveHistoryCache.length ? 'Không có file nào khớp bộ lọc.' : 'Chưa có dữ liệu — bấm "🔄 Tải danh sách từ Drive" ở trên.'}</td></tr>`;
+    return;
+  }
+  tbl.innerHTML = `
+    <tr><th>Thời gian</th><th>Task</th><th>Tên file</th><th></th></tr>
+    ${filtered.map(e=>`
+      <tr>
+        <td>${e.dateStr} ${e.timeStr}</td>
+        <td><span class="task-pill"><i style="background:var(--${e.task})"></i>${e.task.toUpperCase()}</span></td>
+        <td style="font-family:var(--sans);">${escHtml(e.fileName)}</td>
+        <td style="white-space:nowrap;">
+          <button class="dl-btn drive-view-btn" data-id="${e.id}" title="Nạp nội dung file này từ Drive vào dashboard để xem">👁 Xem lại</button>
+          <button class="dl-btn drive-dl-btn" data-id="${e.id}" title="Tải nội dung file này ra Excel">⬇ Tải raw</button>
+        </td>
+      </tr>`).join('')}`;
+}
+
+async function getDriveEntryContent(id){
+  if (driveContentCache.has(id)) return driveContentCache.get(id);
+  const res = await fetch(config.driveUrl + '?action=get&id=' + encodeURIComponent(id), { method:'GET' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const entry = await res.json();
+  if (!entry.employees) throw new Error('File không đúng định dạng (thiếu employees).');
+  driveContentCache.set(id, entry);
+  return entry;
+}
+
+async function restoreDriveEntry(id){
+  try {
+    setDriveHistStatus('Đang tải nội dung file từ Drive...', '');
+    const entry = await getDriveEntryContent(id);
+    rawState[entry.task] = { fileName: entry.fileName, employees: entry.employees };
+    document.getElementById(entry.task+'FileName').textContent = `${entry.fileName} — xem lại từ Drive lúc ${entry.timeStr} ngày ${entry.dateStr}`;
+    renderAll();
+    document.getElementById('histBannerText').textContent = `⚠ Đang xem data ${entry.task.toUpperCase()} lấy từ Drive, lưu lúc ${entry.timeStr} ngày ${entry.dateStr} (không phải dữ liệu mới nhất, và sẽ không tự lưu đè lên bản mới nhất).`;
+    document.getElementById('histBanner').style.display = 'flex';
+    window.scrollTo({top:0, behavior:'smooth'});
+    setDriveHistStatus(`Đã nạp "${entry.fileName}" từ Drive.`, 'ok');
+  } catch(err){
+    setDriveHistStatus('Lỗi khi tải nội dung từ Drive: ' + err.message, 'err');
+  }
+}
+
+async function downloadDriveEntry(id){
+  try {
+    setDriveHistStatus('Đang tải nội dung file từ Drive để xuất Excel...', '');
+    const entry = await getDriveEntryContent(id);
+    const aoa = [['Email','Staff Name','Station ID','Station Name','Captain','San luong','Gio hoat dong', ...Array.from({length:24},(_,h)=>`${String(h).padStart(2,'0')}:00`)]];
+    entry.employees.forEach(e=> aoa.push([e.email, e.staffName||'', e.stationId||'', e.stationName||'', e.captain||'', e.accumulated, e.activeHours, ...e.chron]));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), entry.task.toUpperCase().slice(0,31));
+    XLSX.writeFile(wb, `drive_raw_${entry.task}_${entry.dateStr}_${entry.timeStr.replace(/:/g,'-')}.xlsx`);
+    setDriveHistStatus(`Đã xuất "${entry.fileName}" ra Excel.`, 'ok');
+  } catch(err){
+    setDriveHistStatus('Lỗi khi tải file từ Drive: ' + err.message, 'err');
+  }
+}
+
+document.getElementById('refreshDriveHistory').addEventListener('click', fetchDriveHistoryList);
+document.getElementById('driveHistTaskFilter').addEventListener('change', renderDriveHistoryPanel);
+document.getElementById('driveHistDateFilter').addEventListener('change', renderDriveHistoryPanel);
+document.getElementById('tblDriveHistory').addEventListener('click', (ev)=>{
+  const viewBtn = ev.target.closest('.drive-view-btn');
+  const dlBtn = ev.target.closest('.drive-dl-btn');
+  if (viewBtn) restoreDriveEntry(viewBtn.dataset.id);
+  if (dlBtn) downloadDriveEntry(dlBtn.dataset.id);
+});
+
+// ---------- file handling ----------
+let uploadMode = 'overwrite'; // 'overwrite' | 'accumulate'
+
+// Gộp danh sách nhân viên mới vào danh sách hiện có: cùng email → cộng chron theo từng giờ,
+// tự tính lại accumulated/efficiency/activeHours; khác email → thêm mới.
+function mergeEmployeeLists(existing, incoming){
+  const map = new Map();
+  existing.forEach(e=> map.set(e.email, { ...e, chron: e.chron.slice() }));
+  incoming.forEach(e=>{
+    if (map.has(e.email)){
+      const cur = map.get(e.email);
+      const chron = cur.chron.map((v,i)=> v + (e.chron[i]||0));
+      cur.chron = chron;
+      cur.accumulated = chron.reduce((a,b)=>a+b,0);
+      cur.efficiency = cur.accumulated;
+      cur.activeHours = chron.filter(v=>v>0).length;
+      if (!cur.staffName && e.staffName) cur.staffName = e.staffName;
+      if (!cur.stationId && e.stationId) cur.stationId = e.stationId;
+      if (!cur.stationName && e.stationName) cur.stationName = e.stationName;
+      if (!cur.captain && e.captain) cur.captain = e.captain;
+    } else {
+      map.set(e.email, { ...e, chron: e.chron.slice() });
+    }
+  });
+  const merged = [...map.values()];
+  applyStationOverrides(merged);
+  return merged;
+}
+
+async function processFiles(task, fileList){
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const nameEl = document.getElementById(task+'FileName');
+  nameEl.textContent = `Đang xử lý ${files.length} file...`;
+
+  // Ghi đè: bắt đầu lại từ rỗng rồi gộp các file vừa chọn với nhau (nếu chọn nhiều cùng lúc).
+  // Cộng dồn: gộp thêm vào dữ liệu gốc (rawState, đầy đủ 24h) của Task này đang có sẵn — không dùng bản đã lọc theo khung giờ.
+  let base = (uploadMode==='accumulate' && rawState[task]) ? rawState[task].employees : [];
+  let names = (uploadMode==='accumulate' && rawState[task] && rawState[task].fileNames) ? rawState[task].fileNames.slice() : [];
+
+  for (const file of files){
+    try {
+      const ab = await file.arrayBuffer();
+      const employees = parseWorkbook(ab);
+      base = mergeEmployeeLists(base, employees);
+      names.push(file.name);
+      await saveHistoryEntry(task, file.name, employees);
+    } catch(err){
+      nameEl.textContent = `Lỗi ở file "${file.name}": ` + err.message;
+      return;
+    }
+  }
+
+  const fileLabel = names.length>1 ? `${names.length} file cộng dồn: ${names.join(', ')}` : names[0];
+  rawState[task] = { fileName: fileLabel, fileNames: names, employees: base };
+  nameEl.textContent = fileLabel;
+  document.getElementById('histBanner').style.display = 'none';
+  const summary = renderAll();
+  await saveLatest();
+  await cleanupOldHistory();
+  await renderHistoryPanel();
+  await pushToDrive(summary, task, fileLabel, names, base);
+}
+
+function applyUploadModeUI(){
+  document.getElementById('modeOverwrite').classList.toggle('active', uploadMode==='overwrite');
+  document.getElementById('modeAccumulate').classList.toggle('active', uploadMode==='accumulate');
+}
+document.getElementById('modeOverwrite').addEventListener('click', ()=>{ uploadMode='overwrite'; applyUploadModeUI(); saveTablePrefs(); });
+document.getElementById('modeAccumulate').addEventListener('click', ()=>{ uploadMode='accumulate'; applyUploadModeUI(); saveTablePrefs(); });
+
+['pick','pack'].forEach(task=>{
+  const input = document.getElementById(task+'Input');
+  const drop = document.getElementById('drop'+(task==='pick'?'Pick':'Pack'));
+  const resetBtn = document.getElementById('reset'+(task==='pick'?'Pick':'Pack'));
+  input.addEventListener('change', ()=>{ if (input.files.length) processFiles(task, input.files); input.value=''; });
+  drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
+  drop.addEventListener('drop', e=>{
+    e.preventDefault(); drop.classList.remove('drag');
+    if (e.dataTransfer.files.length) processFiles(task, e.dataTransfer.files);
+  });
+  resetBtn.addEventListener('click', async (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    if (!rawState[task]){ return; }
+    if (!confirm(`Xoá toàn bộ dữ liệu ${task==='pick'?'Picking':'Packing'} đã tải/cộng dồn trên dashboard? (không xoá lịch sử tải lên)`)) return;
+    rawState[task] = null;
+    document.getElementById(task+'FileName').textContent = 'Chưa có file';
+    renderAll();
+    await saveLatest();
+  });
+});
+
+
+document.getElementById('searchBox').addEventListener('input', renderTable);
+document.getElementById('taskFilter').addEventListener('change', renderTable);
+document.getElementById('captainFilter').addEventListener('change', renderTable);
+
+// ---------- editable Station ID / Station Name / Captain cells ----------
+document.getElementById('tbody').addEventListener('keydown', (ev)=>{
+  if (ev.target.classList.contains('editable') && ev.key==='Enter'){ ev.preventDefault(); ev.target.blur(); }
+});
+document.getElementById('tbody').addEventListener('blur', async (ev)=>{
+  const td = ev.target;
+  if (!td.classList || !td.classList.contains('editable')) return;
+  const email = td.dataset.email, field = td.dataset.field;
+  const value = td.textContent.trim();
+  await setStationOverride(email, field, value);
+  td.classList.add('saved-flash');
+  setTimeout(()=>td.classList.remove('saved-flash'), 800);
+  if (field==='captain') updateCaptainFilterOptions();
+}, true);
+document.getElementById('sortHighFirst').addEventListener('click', ()=> setSort('efficiency','desc'));
+document.getElementById('sortLowFirst').addEventListener('click', ()=> setSort('efficiency','asc'));
+document.getElementById('theadRow').addEventListener('click', (ev)=>{
+  const th = ev.target.closest('th[data-k]');
+  if (!th) return;
+  const k = th.dataset.k;
+  if (sortState.key===k) sortState.dir = sortState.dir==='asc'?'desc':'asc';
+  else { sortState.key=k; sortState.dir='desc'; }
+  renderTable();
+});
+document.getElementById('clearHistory').addEventListener('click', async ()=>{
+  if (!confirm('Xoá dữ liệu đã lưu trong trình duyệt (file mới nhất + cấu hình)?')) return;
+  try { await storage.delete('latest_snapshot', false); } catch(e){}
+  location.reload();
+});
+
+// ---------- KPI Hourly: zoom ----------
+function applyZoom(){
+  const table = document.getElementById('kpiHourlyTable');
+  table.style.fontSize = (12.5 * zoomLevel/100).toFixed(2) + 'px';
+  document.getElementById('zoomLabel').textContent = zoomLevel + '%';
+}
+async function saveTablePrefs(){
+  try { await storage.set('kpi_table_prefs', JSON.stringify({ zoomLevel, editMode, hiddenCols:[...hiddenCols], uploadMode }), false); } catch(e){}
+}
+async function loadTablePrefs(){
+  try {
+    const res = await storage.get('kpi_table_prefs', false);
+    if (res && res.value){
+      const p = JSON.parse(res.value);
+      if (p.zoomLevel) zoomLevel = p.zoomLevel;
+      if (p.hiddenCols) hiddenCols = new Set(p.hiddenCols);
+      if (p.uploadMode) uploadMode = p.uploadMode;
+      // editMode mặc định luôn Tắt khi mở lại trang, để tránh sửa nhầm ngoài ý muốn
+    }
+  } catch(e){}
+}
+document.getElementById('zoomIn').addEventListener('click', ()=>{
+  zoomLevel = Math.min(160, zoomLevel+10);
+  applyZoom(); saveTablePrefs();
+});
+document.getElementById('zoomOut').addEventListener('click', ()=>{
+  zoomLevel = Math.max(70, zoomLevel-10);
+  applyZoom(); saveTablePrefs();
+});
+
+// ---------- KPI Hourly: chế độ sửa ----------
+function applyEditModeUI(){
+  const el = document.getElementById('editModeToggle');
+  el.classList.toggle('active', editMode);
+  el.textContent = editMode ? '🔓 Chế độ sửa: Bật' : '🔒 Chế độ sửa: Tắt';
+}
+document.getElementById('editModeToggle').addEventListener('click', ()=>{
+  editMode = !editMode;
+  applyEditModeUI();
+  renderTable();
+  saveTablePrefs();
+});
+
+// ---------- KPI Hourly: ẩn/hiện cột ----------
+let hiddenCols = new Set();
+function applyColumnVisibility(){
+  ['staffName','stationId','stationName','captain'].forEach(col=>{
+    const hide = hiddenCols.has(col);
+    document.querySelectorAll('.col-'+col).forEach(el=> el.classList.toggle('col-hidden', hide));
+  });
+  document.querySelectorAll('#colToggleMenu input[type=checkbox]').forEach(cb=>{
+    cb.checked = !hiddenCols.has(cb.dataset.col);
+  });
+}
+document.getElementById('colToggleBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  document.getElementById('colToggleMenu').classList.toggle('open');
+});
+document.addEventListener('click', (e)=>{
+  const menu = document.getElementById('colToggleMenu');
+  if (menu.classList.contains('open') && !menu.contains(e.target) && e.target.id!=='colToggleBtn') menu.classList.remove('open');
+});
+document.querySelectorAll('#colToggleMenu input[type=checkbox]').forEach(cb=>{
+  cb.addEventListener('change', ()=>{
+    if (cb.checked) hiddenCols.delete(cb.dataset.col); else hiddenCols.add(cb.dataset.col);
+    applyColumnVisibility();
+    saveTablePrefs();
+  });
+});
+
+// ---------- bộ lọc khung giờ chung cho toàn dashboard ----------
+function populateHourSelects(){
+  ['globalHourFrom','globalHourTo'].forEach(id=>{
+    const sel = document.getElementById(id);
+    for (let h=0; h<24; h++){
+      const opt = document.createElement('option');
+      opt.value = String(h);
+      opt.textContent = String(h).padStart(2,'0')+'h';
+      sel.appendChild(opt);
+    }
+  });
+  document.getElementById('globalHourFrom').value = '0';
+  document.getElementById('globalHourTo').value = '23';
+}
+document.getElementById('globalHourFrom').addEventListener('change', renderAll);
+document.getElementById('globalHourTo').addEventListener('change', renderAll);
+document.getElementById('globalHourReset').addEventListener('click', ()=>{
+  document.getElementById('globalHourFrom').value = '0';
+  document.getElementById('globalHourTo').value = '23';
+  renderAll();
+});
+
+// ---------- readme modal ----------
+document.getElementById('readmeToggle').addEventListener('click', ()=> document.getElementById('readmeModal').classList.add('open'));
+document.getElementById('readmeCloseBtn').addEventListener('click', ()=> document.getElementById('readmeModal').classList.remove('open'));
+document.getElementById('readmeModal').addEventListener('click', (e)=>{
+  if (e.target.id==='readmeModal') document.getElementById('readmeModal').classList.remove('open');
+});
+document.addEventListener('keydown', (e)=>{
+  if (e.key==='Escape') document.getElementById('readmeModal').classList.remove('open');
+});
+
+// ---------- init ----------
+(async function init(){
+  await loadTheme();
+  await loadConfig();
+  await loadStationOverrides();
+  await loadTablePrefs();
+  applyZoom();
+  applyEditModeUI();
+  applyColumnVisibility();
+  populateHourSelects();
+  await loadLatest();
+  renderAll();
+  await cleanupOldHistory();
+  await renderHistoryPanel();
+  if (config.driveUrl && config.autoSyncDrive) loadFromDriveLatest(true); // chạy nền, không chặn render đầu tiên
+})();
+</script>
+
+</body>
+</html>
